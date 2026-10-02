@@ -1,0 +1,80 @@
+name: Build Flutter App (Android & iOS)
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  # --------------------------------------------------
+  # 1. بناء تطبيق أندرويد (APK) - خلال أقل من 3 دقائق
+  # --------------------------------------------------
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Flutter SDK & Cache
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.19.x'
+          channel: 'stable'
+          cache: true
+          cache-key: "flutter-:os:-:channel:-:version:-:arch:-:hash:"
+
+      - name: Cache Gradle
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Build Android APK
+        run: flutter build apk --release
+
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Android-APK-Release
+          path: build/app/outputs/flutter-apk/app-release.apk
+
+  # --------------------------------------------------
+  # 2. بناء تطبيق آيفون (iOS - Runner.app / IPA) - فائق السرعة
+  # --------------------------------------------------
+  build-ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter SDK & Cache
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.19.x'
+          channel: 'stable'
+          cache: true
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Build iOS App (Unsigned for Testing / Simulator)
+        run: flutter build ios --release --no-codesign
+
+      - name: Compress iOS Build
+        run: |
+          cd build/ios/iphoneos
+          zip -r Runner.app.zip Runner.app
+
+      - name: Upload iOS App
+        uses: actions/upload-artifact@v4
+        with:
+          name: iOS-Runner-App
+          path: build/ios/iphoneos/Runner.app.zip
