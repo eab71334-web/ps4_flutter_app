@@ -32,7 +32,7 @@ jobs:
 
       - name: Add Required Dependencies
         run: |
-          flutter pub add http
+          flutter pub add http file_picker
 
       - name: Install Dependencies
         run: flutter pub get
@@ -67,7 +67,7 @@ jobs:
 
       - name: Add Required Dependencies
         run: |
-          flutter pub add http
+          flutter pub add http file_picker
 
       - name: Install Dependencies
         run: flutter pub get
