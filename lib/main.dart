@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -32,9 +31,6 @@ class PS4EmulatorApp extends StatelessWidget {
   }
 }
 
-// ==========================================
-// 1. شاشة مكتبة الألعاب ومتصفح الملفات الحقيقي
-// ==========================================
 class GameLibraryScreen extends StatefulWidget {
   const GameLibraryScreen({super.key});
 
@@ -45,10 +41,10 @@ class GameLibraryScreen extends StatefulWidget {
 class _GameLibraryScreenState extends State<GameLibraryScreen> {
   final List<File> _gameFiles = [];
 
-  void _openFilePicker() async {
+  void _openFilePicker() {
     HapticFeedback.selectionClick();
     final Directory initialDir = Directory.current;
-    
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -156,9 +152,6 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
   }
 }
 
-// ==========================================
-// 2. نافذة تصفح الملفات من الذاكرة
-// ==========================================
 class FileBrowserDialog extends StatefulWidget {
   final Directory initialDirectory;
   final Function(File) onFileSelected;
@@ -268,9 +261,6 @@ class _FileBrowserDialogState extends State<FileBrowserDialog> {
   }
 }
 
-// ==========================================
-// 3. شاشة المحاكي الرئيسية واختيارات الإعدادات
-// ==========================================
 class EmulatorScreen extends StatefulWidget {
   final String gameName;
   const EmulatorScreen({super.key, required this.gameName});
@@ -280,14 +270,13 @@ class EmulatorScreen extends StatefulWidget {
 }
 
 class _EmulatorScreenState extends State<EmulatorScreen> {
-  // إعدادات المحاكي
   double _buttonOpacity = 0.45;
   String _resolution = '1080p';
   int _targetFPS = 60;
   String _lastInput = 'المحاكي جاهز للعب...';
 
   void _triggerInput(String label) {
-    HapticFeedback.lightImpact(); // اهتزاز عند التفاعل
+    HapticFeedback.lightImpact();
     setState(() {
       _lastInput = 'الزر المضغوط: $label';
     });
@@ -297,7 +286,7 @@ class _EmulatorScreenState extends State<EmulatorScreen> {
     HapticFeedback.mediumImpact();
     showDialog(
       context: context,
-      builder: (context) => StatefulWidget(
+      builder: (context) => StatefulBuilder(
         builder: (context, setModalState) {
           return AlertDialog(
             backgroundColor: const Color(0xFF1E1E2C),
@@ -380,7 +369,6 @@ class _EmulatorScreenState extends State<EmulatorScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          // شاشة عرض اللعبة الرئيسية
           Container(
             width: double.infinity,
             height: double.infinity,
@@ -409,8 +397,6 @@ class _EmulatorScreenState extends State<EmulatorScreen> {
               ),
             ),
           ),
-
-          // أزرار الأكتاف العلوي (L1, L2, R1, R2)
           Positioned(
             top: 15,
             left: 20,
@@ -435,8 +421,6 @@ class _EmulatorScreenState extends State<EmulatorScreen> {
               ],
             ),
           ),
-
-          // شريط الأزرار الوسطى والإعدادات (Share / Options / Settings / Exit)
           Positioned(
             top: 15,
             left: MediaQuery.of(context).size.width / 2 - 110,
@@ -459,15 +443,12 @@ class _EmulatorScreenState extends State<EmulatorScreen> {
               ],
             ),
           ),
-
-          // D-Pad + Left Joystick (L3) - الجهة اليسرى
           Positioned(
             bottom: 20,
             left: 20,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                // D-Pad
                 Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -483,7 +464,6 @@ class _EmulatorScreenState extends State<EmulatorScreen> {
                   ],
                 ),
                 const SizedBox(width: 25),
-                // Left Joystick (L3)
                 VirtualJoystick(
                   label: 'L3',
                   opacity: _buttonOpacity,
@@ -493,15 +473,12 @@ class _EmulatorScreenState extends State<EmulatorScreen> {
               ],
             ),
           ),
-
-          // Action Buttons + Right Joystick (R3) - الجهة اليمنى
           Positioned(
             bottom: 20,
             right: 20,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                // Right Joystick (R3)
                 VirtualJoystick(
                   label: 'R3',
                   opacity: _buttonOpacity,
@@ -509,7 +486,6 @@ class _EmulatorScreenState extends State<EmulatorScreen> {
                   onPressed: () => _triggerInput('R3 Press'),
                 ),
                 const SizedBox(width: 25),
-                // Triangle, Square, Circle, Cross
                 Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -532,7 +508,6 @@ class _EmulatorScreenState extends State<EmulatorScreen> {
     );
   }
 
-  // بناء أزرار اللمس الشفافة التفاعلية
   Widget _buildButton(
     String label,
     VoidCallback onTap, {
@@ -563,9 +538,6 @@ class _EmulatorScreenState extends State<EmulatorScreen> {
   }
 }
 
-// ==========================================
-// 4. مكون عصا التحكم التناظرية (360 Joystick)
-// ==========================================
 class VirtualJoystick extends StatefulWidget {
   final String label;
   final double opacity;
