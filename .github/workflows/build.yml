@@ -1,4 +1,4 @@
-name: Build Flutter App (Android & iOS)
+name: Auto Create & Build Flutter (Android & iOS)
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
 
 jobs:
   # --------------------------------------------------
-  # 1. بناء تطبيق أندرويد (APK) - خلال أقل من 3 دقائق
+  # 1. بناء تطبيق أندرويد (APK) - في أقل من 3 دقائق
   # --------------------------------------------------
   build-android:
     runs-on: ubuntu-latest
@@ -19,21 +19,16 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Setup Flutter SDK & Cache
+      - name: Setup Flutter SDK
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.19.x'
           channel: 'stable'
           cache: true
-          cache-key: "flutter-:os:-:channel:-:version:-:arch:-:hash:"
 
-      - name: Cache Gradle
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
+      - name: Auto Create Flutter Project Structure
+        run: |
+          flutter create . --org com.ps4app.app --project-name ps4_app
 
       - name: Install Dependencies
         run: flutter pub get
@@ -48,24 +43,28 @@ jobs:
           path: build/app/outputs/flutter-apk/app-release.apk
 
   # --------------------------------------------------
-  # 2. بناء تطبيق آيفون (iOS - Runner.app / IPA) - فائق السرعة
+  # 2. بناء تطبيق آيفون (iOS) - فائق السرعة
   # --------------------------------------------------
   build-ios:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Flutter SDK & Cache
+      - name: Setup Flutter SDK
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.19.x'
           channel: 'stable'
           cache: true
 
+      - name: Auto Create Flutter Project Structure
+        run: |
+          flutter create . --org com.ps4app.app --project-name ps4_app
+
       - name: Install Dependencies
         run: flutter pub get
 
-      - name: Build iOS App (Unsigned for Testing / Simulator)
+      - name: Build iOS App
         run: flutter build ios --release --no-codesign
 
       - name: Compress iOS Build
