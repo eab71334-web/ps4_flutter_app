@@ -37,7 +37,7 @@ class PS4EmulatorApp extends StatelessWidget {
 }
 
 class GameModel {
-  final File file;
+  final String path;
   final String title;
   final String titleId;
   String? coverUrl;
@@ -46,7 +46,7 @@ class GameModel {
   bool isLoading;
 
   GameModel({
-    required this.file,
+    required this.path,
     required this.title,
     required this.titleId,
     this.coverUrl,
@@ -87,25 +87,25 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
         }
       }
     } catch (_) {
-      // إبقاء الصورة الافتراضية
+      // إبقاء الصورة الافتراضية عند عدم الاتصال
     } finally {
       setState(() => game.isLoading = false);
     }
   }
 
-  void _addGameFile(File file) {
-    final fileName = file.path.split('/').last;
+  void _addGameFilePath(String filePath) {
+    final fileName = filePath.split('/').last;
     final cleanName = fileName.replaceAll(RegExp(r'\.(pkg|iso|bin|elf)$', caseSensitive: false), '');
     final extractedCUSA = 'CUSA${(10000 + _games.length * 15).toString()}';
 
     final newGame = GameModel(
-      file: file,
+      path: filePath,
       title: cleanName,
       titleId: extractedCUSA,
     );
 
     setState(() {
-      if (!_games.any((g) => g.file.path == file.path)) {
+      if (!_games.any((g) => g.path == filePath)) {
         _games.add(newGame);
       }
     });
@@ -113,23 +113,22 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
     _fetchGameMetadata(newGame);
   }
 
-  // فتح متصفح ملفات الأندرويد الأصلي واختيار ملفات .pkg
-  Future<void> _openFilePicker() async {
+  Future<void> _openSystemFilePicker() async {
     HapticFeedback.selectionClick();
     
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['pkg', 'iso', 'bin', 'elf'],
+        type: FileType.any,
       );
 
       if (result != null && result.files.single.path != null) {
-        File file = File(result.files.single.path!);
-        _addGameFile(file);
+        String path = result.files.single.path!;
+        _addGameFilePath(path);
+        
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('تمت إضافة: ${file.path.split('/').last}'),
+              content: Text('تم إضافة: ${path.split('/').last}'),
               backgroundColor: Colors.blueAccent,
             ),
           );
@@ -139,7 +138,7 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('خطأ في اختيار الملف: $e'),
+            content: Text('حدث خطأ أثناء إختيار الملف: $e'),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -161,7 +160,7 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.add_to_photos, color: Colors.blueAccent),
-            onPressed: _openFilePicker,
+            onPressed: _openSystemFilePicker,
             tooltip: 'إضافة لعبة جديدة',
           ),
         ],
@@ -177,7 +176,7 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
                       style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 20),
                   ElevatedButton.icon(
-                    onPressed: _openFilePicker,
+                    onPressed: _openSystemFilePicker,
                     icon: const Icon(Icons.folder_open),
                     label: const Text('تصفح ملفات الهاتف (.pkg)'),
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent),
@@ -280,7 +279,7 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
           child: game.coverUrl == null ? const Icon(Icons.gamepad, color: Colors.white) : null,
         ),
         title: Text(game.title, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text('ID: ${game.titleId} | Path: ${game.file.path}', style: const TextStyle(fontSize: 11)),
+        subtitle: Text('ID: ${game.titleId} | Path: ${game.path}', style: const TextStyle(fontSize: 11)),
         trailing: const Icon(Icons.play_circle_fill, color: Colors.greenAccent, size: 36),
         onTap: () {
           HapticFeedback.mediumImpact();
