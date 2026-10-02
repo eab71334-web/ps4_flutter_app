@@ -30,6 +30,10 @@ jobs:
         run: |
           flutter create . --org com.ps4app.app --project-name ps4_app
 
+      - name: Add Required Dependencies
+        run: |
+          flutter pub add http sensors_plus
+
       - name: Install Dependencies
         run: flutter pub get
 
@@ -60,6 +64,10 @@ jobs:
       - name: Auto Create Flutter Project Structure
         run: |
           flutter create . --org com.ps4app.app --project-name ps4_app
+
+      - name: Add Required Dependencies
+        run: |
+          flutter pub add http sensors_plus
 
       - name: Install Dependencies
         run: flutter pub get
