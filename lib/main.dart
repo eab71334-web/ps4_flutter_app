@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
+import 'package:file_picker/file_picker.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -112,31 +113,38 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
     _fetchGameMetadata(newGame);
   }
 
-  void _openFilePicker() {
+  // فتح متصفح ملفات الأندرويد الأصلي واختيار ملفات .pkg
+  Future<void> _openFilePicker() async {
     HapticFeedback.selectionClick();
-    final Directory initialDir = Directory.current;
+    
+    try {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pkg', 'iso', 'bin', 'elf'],
+      );
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: const Color(0xFF16161E),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => FileBrowserDialog(
-        initialDirectory: initialDir,
-        onFileSelected: (File file) {
-          _addGameFile(file);
-          Navigator.pop(context);
+      if (result != null && result.files.single.path != null) {
+        File file = File(result.files.single.path!);
+        _addGameFile(file);
+        if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('تم إضافة: ${file.path.split('/').last}'),
+              content: Text('تمت إضافة: ${file.path.split('/').last}'),
               backgroundColor: Colors.blueAccent,
             ),
           );
-        },
-      ),
-    );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('خطأ في اختيار الملف: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -286,92 +294,6 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
   }
 }
 
-class FileBrowserDialog extends StatefulWidget {
-  final Directory initialDirectory;
-  final Function(File) onFileSelected;
-
-  const FileBrowserDialog({super.key, required this.initialDirectory, required this.onFileSelected});
-
-  @override
-  State<FileBrowserDialog> createState() => _FileBrowserDialogState();
-}
-
-class _FileBrowserDialogState extends State<FileBrowserDialog> {
-  late Directory _currentDir;
-  List<FileSystemEntity> _entities = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _currentDir = widget.initialDirectory;
-    _loadDirectoryContents();
-  }
-
-  void _loadDirectoryContents() {
-    try {
-      setState(() {
-        _entities = _currentDir.listSync().where((e) {
-          if (e is Directory) return true;
-          final path = e.path.toLowerCase();
-          return path.endsWith('.pkg') || path.endsWith('.iso') || path.endsWith('.bin') || path.endsWith('.elf');
-        }).toList();
-      });
-    } catch (_) {
-      setState(() => _entities = []);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.85,
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              if (_currentDir.parent.path != _currentDir.path)
-                IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  onPressed: () {
-                    setState(() => _currentDir = _currentDir.parent);
-                    _loadDirectoryContents();
-                  },
-                ),
-              Expanded(
-                child: Text(_currentDir.path, style: const TextStyle(fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
-              ),
-              IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
-            ],
-          ),
-          const Divider(),
-          Expanded(
-            child: ListView.builder(
-              itemCount: _entities.length,
-              itemBuilder: (context, index) {
-                final entity = _entities[index];
-                final isDir = entity is Directory;
-                return ListTile(
-                  leading: Icon(isDir ? Icons.folder : Icons.sports_esports, color: isDir ? Colors.amber : Colors.cyanAccent),
-                  title: Text(entity.path.split('/').last),
-                  onTap: () {
-                    if (isDir) {
-                      setState(() => _currentDir = entity as Directory);
-                      _loadDirectoryContents();
-                    } else if (entity is File) {
-                      widget.onFileSelected(entity);
-                    }
-                  },
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class EmulatorScreen extends StatefulWidget {
   final GameModel game;
   const EmulatorScreen({super.key, required this.game});
@@ -390,7 +312,6 @@ class _EmulatorScreenState extends State<EmulatorScreen> {
   @override
   void initState() {
     super.initState();
-    // محاكاة قراءات الأداء بدون مكتبات خارجية قد تسبب مشاكل بناء
     _metricsTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
       if (mounted) {
         setState(() {
