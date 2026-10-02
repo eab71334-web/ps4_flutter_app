@@ -38,7 +38,7 @@ class PS4EmulatorApp extends StatelessWidget {
 class GameModel {
   final File file;
   final String title;
-  final String titleId; // e.g. CUSA00123
+  final String titleId;
   String? coverUrl;
   String? description;
   double? rating;
@@ -66,12 +66,10 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
   final List<GameModel> _games = [];
   bool _isGridView = true;
 
-  // محاكاة قراءة CUSA ID وجلب غلاف اللعبة ومعلوماتها تلقائياً
   Future<void> _fetchGameMetadata(GameModel game) async {
     setState(() => game.isLoading = true);
 
     try {
-      // محاكاة الاتصال بقاعدة بيانات الألعاب عبر الـ Title ID
       final response = await http
           .get(Uri.parse('https://api.rawg.io/api/games?key=YOUR_KEY_HERE&search=${game.title}'))
           .timeout(const Duration(seconds: 4));
@@ -88,7 +86,7 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
         }
       }
     } catch (_) {
-      // في حالة عدم توفر شبكة، استعراض صورة افتراضية
+      // إبقاء الصورة الافتراضية في حالة عدم وجود اتصال
     } finally {
       setState(() => game.isLoading = false);
     }
@@ -97,8 +95,6 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
   void _addGameFile(File file) {
     final fileName = file.path.split('/').last;
     final cleanName = fileName.replaceAll(RegExp(r'\.(pkg|iso|bin|elf)$', caseSensitive: false), '');
-    
-    // استخراج معرّف CUSA افتراضي أو عشوائي للعرض
     final extractedCUSA = 'CUSA${(10000 + _games.length * 15).toString()}';
 
     final newGame = GameModel(
@@ -385,7 +381,6 @@ class EmulatorScreen extends StatefulWidget {
 }
 
 class _EmulatorScreenState extends State<EmulatorScreen> {
-  double _buttonOpacity = 0.45;
   bool _showPerformanceHUD = true;
   double _gyroX = 0, _gyroY = 0;
   StreamSubscription? _gyroSubscription;
@@ -393,8 +388,7 @@ class _EmulatorScreenState extends State<EmulatorScreen> {
   @override
   void initState() {
     super.initState();
-    // تفعيل الجيروسكوب أثناء اللعب
-    _gyroSubscription = accelerometerEvents.listen((AccelerometerEvent event) {
+    _gyroSubscription = accelerometerEventStream().listen((AccelerometerEvent event) {
       setState(() {
         _gyroX = event.x;
         _gyroY = event.y;
@@ -428,8 +422,6 @@ class _EmulatorScreenState extends State<EmulatorScreen> {
               ),
             ),
           ),
-          
-          // 6. Performance & Gyro Overlay (شاشة الأداء والجيروسكوب)
           if (_showPerformanceHUD)
             Positioned(
               top: 40,
@@ -451,7 +443,6 @@ class _EmulatorScreenState extends State<EmulatorScreen> {
                 ),
               ),
             ),
-
           Positioned(
             top: 15,
             right: 20,
