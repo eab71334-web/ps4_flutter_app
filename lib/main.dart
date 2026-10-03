@@ -125,7 +125,7 @@ class GameModel {
 // --- MAIN APP ---
 
 void main() {
-  WidgetsFlutterBinding.ensureInitialized();
+  WidgetsBinding.instance;
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.landscapeLeft,
     DeviceOrientation.landscapeRight,
@@ -263,7 +263,7 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
     showDialog(
       context: context,
       builder: (context) {
-        return StatefulWidget(
+        return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
               backgroundColor: const Color(0xFF14141F),
