@@ -1,10 +1,98 @@
 import 'dart:async';
+import 'dart:ffi';
 import 'dart:io';
-import 'dart:math' as math;
+import 'package:ffi/ffi.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:device_info_plus/device_info_plus.dart';
+
+// --- FFI STRUCTS & TYPEDEFS (ربط كود C++ بـ Dart) ---
+
+final class EmulatorStatsStruct extends Struct {
+  @Float()
+  external double currentFps;
+
+  @Int32()
+  external int ramUsageMb;
+
+  @Int32()
+  external int cpuLoadPercent;
+
+  @Int32()
+  external int isRunning;
+}
+
+typedef NativeInitAndBoot = Int32 Function(Pointer<Utf8> gamePath, Pointer<Utf8> fwPath);
+typedef DartInitAndBoot = int Function(Pointer<Utf8> gamePath, Pointer<Utf8> fwPath);
+
+typedef NativeGetStats = Void Function(Pointer<EmulatorStatsStruct> outStats);
+typedef DartGetStats = void Function(Pointer<EmulatorStatsStruct> outStats);
+
+typedef NativeStop = Void Function();
+typedef DartStop = void Function();
+
+// --- ENGINE BRIDGE CLASS ---
+
+class PS4NativeEngine {
+  DynamicLibrary? _lib;
+  DartInitAndBoot? _bootFunc;
+  DartGetStats? _getStatsFunc;
+  DartStop? _stopFunc;
+
+  bool isLoaded = false;
+
+  PS4NativeEngine() {
+    try {
+      if (Platform.isAndroid) {
+        _lib = DynamicLibrary.open("libps4_emulator_core.so");
+        isLoaded = true;
+      } else if (Platform.isIOS) {
+        _lib = DynamicLibrary.process();
+        isLoaded = true;
+      }
+
+      if (isLoaded && _lib != null) {
+        _bootFunc = _lib!
+            .lookup<NativeFunction<NativeInitAndBoot>>("PS4Core_InitAndBoot")
+            .asFunction<DartInitAndBoot>();
+        _getStatsFunc = _lib!
+            .lookup<NativeFunction<NativeGetStats>>("PS4Core_GetStats")
+            .asFunction<DartGetStats>();
+        _stopFunc = _lib!
+            .lookup<NativeFunction<NativeStop>>("PS4Core_Stop")
+            .asFunction<DartStop>();
+      }
+    } catch (e) {
+      isLoaded = false;
+    }
+  }
+
+  int boot(String gamePath, String? fwPath) {
+    if (!isLoaded || _bootFunc == null) return -1;
+    final pGame = gamePath.toNativeUtf8();
+    final pFw = fwPath != null ? fwPath.toNativeUtf8() : nullptr;
+
+    final res = _bootFunc!(pGame, pFw.cast<Utf8>());
+
+    calloc.free(pGame);
+    if (pFw != nullptr) calloc.free(pFw);
+    return res;
+  }
+
+  void getStats(Pointer<EmulatorStatsStruct> stats) {
+    if (isLoaded && _getStatsFunc != null) {
+      _getStatsFunc!(stats);
+    }
+  }
+
+  void stop() {
+    if (isLoaded && _stopFunc != null) {
+      _stopFunc!();
+    }
+  }
+}
+
+// --- FLUTTER APPLICATION ---
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,7 +109,7 @@ class PS4EmulatorApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'PS4 Emulator Pro - FW 9.00',
+      title: 'PS4 Native Engine (shadPS4/fpPS4 Core)',
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: const Color(0xFF0A0A0C),
@@ -58,20 +146,18 @@ class GameLibraryScreen extends StatefulWidget {
 
 class _GameLibraryScreenState extends State<GameLibraryScreen> {
   final List<GameModel> _games = [];
+  String? _firmwarePath;
+  final PS4NativeEngine _engine = PS4NativeEngine();
 
   String _extractCusaId(String fileName) {
     final regExp = RegExp(r'CUSA\d{5}', caseSensitive: false);
     final match = regExp.firstMatch(fileName);
-    if (match != null) {
-      return match.group(0)!.toUpperCase();
-    }
-    return 'CUSA${(10000 + _games.length).toString()}';
+    return match != null ? match.group(0)!.toUpperCase() : 'CUSA05730';
   }
 
-  Future<void> _openSystemFilePicker() async {
+  Future<void> _pickGameFile() async {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(type: FileType.any);
-
       if (result != null && result.files.single.path != null) {
         final filePath = result.files.single.path!;
         final file = File(filePath);
@@ -93,7 +179,29 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('خطأ في قراءة الملف: $e')),
+          SnackBar(content: Text('خطأ أثناء تحميل اللعبة: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _pickFirmwareFile() async {
+    try {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(type: FileType.any);
+      if (result != null && result.files.single.path != null) {
+        setState(() {
+          _firmwarePath = result.files.single.path!;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('تم إرفاق البرمجية الثابتة/التحديث: ${_firmwarePath!.split('/').last}')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('خطأ في تحميل ملف النظام: $e')),
         );
       }
     }
@@ -103,159 +211,167 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('PS4 Emulator Pro (FW 9.00) - المكتبة'),
+        title: const Text('محاكي PS4 Native Core - المكتبة'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.system_update_alt, color: Colors.amberAccent),
+            tooltip: 'إضافة ملف نظام/تحديث (FW / Patch)',
+            onPressed: _pickFirmwareFile,
+          ),
+          IconButton(
             icon: const Icon(Icons.add_to_photos, color: Colors.blueAccent),
-            onPressed: _openSystemFilePicker,
+            tooltip: 'إضافة لعبة PKG',
+            onPressed: _pickGameFile,
           ),
         ],
       ),
-      body: _games.isEmpty
-          ? Center(
-              child: ElevatedButton.icon(
-                onPressed: _openSystemFilePicker,
-                icon: const Icon(Icons.folder_open),
-                label: const Text('إضافة لعبة PKG جديدة'),
-              ),
-            )
-          : GridView.builder(
-              padding: const EdgeInsets.all(16),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
-                childAspectRatio: 0.8,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-              ),
-              itemCount: _games.length,
-              itemBuilder: (context, index) {
-                final game = _games[index];
-                return InkWell(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => EmulatorScreen(game: game)),
-                    );
-                  },
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1A1A26),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.blueAccent.withOpacity(0.5)),
+      body: Column(
+        children: [
+          if (_firmwarePath != null)
+            Container(
+              color: Colors.blueGrey.shade900,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.greenAccent, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'ملف النظام المرفق: ${_firmwarePath!.split('/').last}',
+                      style: const TextStyle(fontSize: 12, color: Colors.white70),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    padding: const EdgeInsets.all(8),
+                  ),
+                ],
+              ),
+            ),
+          Expanded(
+            child: _games.isEmpty
+                ? Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.sports_esports, size: 48, color: Colors.cyanAccent),
-                        const SizedBox(height: 8),
-                        Text(game.title, maxLines: 2, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center),
-                        const SizedBox(height: 4),
-                        Text(game.titleId, style: const TextStyle(color: Colors.grey, fontSize: 11)),
-                        Text('${game.fileSizeMB} MB', style: const TextStyle(color: Colors.blueAccent, fontSize: 10)),
+                        ElevatedButton.icon(
+                          onPressed: _pickGameFile,
+                          icon: const Icon(Icons.folder_open),
+                          label: const Text('إضافة لعبة (.pkg / .elf)'),
+                        ),
+                        const SizedBox(height: 12),
+                        OutlinedButton.icon(
+                          onPressed: _pickFirmwareFile,
+                          icon: const Icon(Icons.file_upload),
+                          label: const Text('إضافة ملف نظام أو تحديث (Firmware 9.00 / Patch)'),
+                        ),
                       ],
                     ),
+                  )
+                : GridView.builder(
+                    padding: const EdgeInsets.all(16),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 3,
+                      childAspectRatio: 0.8,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                    ),
+                    itemCount: _games.length,
+                    itemBuilder: (context, index) {
+                      final game = _games[index];
+                      return InkWell(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => NativeEmulatorRunnerScreen(
+                                game: game,
+                                firmwarePath: _firmwarePath,
+                                engine: _engine,
+                              ),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1A1A26),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.blueAccent.withOpacity(0.5)),
+                          ),
+                          padding: const EdgeInsets.all(8),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.sports_esports, size: 48, color: Colors.cyanAccent),
+                              const SizedBox(height: 8),
+                              Text(game.title, maxLines: 2, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center),
+                              const SizedBox(height: 4),
+                              Text(game.titleId, style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                              Text('${game.fileSizeMB} MB', style: const TextStyle(color: Colors.blueAccent, fontSize: 10)),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                );
-              },
-            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
-class EmulatorScreen extends StatefulWidget {
+// --- EMULATOR RUNNER SCREEN ---
+
+class NativeEmulatorRunnerScreen extends StatefulWidget {
   final GameModel game;
-  const EmulatorScreen({super.key, required this.game});
+  final String? firmwarePath;
+  final PS4NativeEngine engine;
+
+  const NativeEmulatorRunnerScreen({
+    super.key,
+    required this.game,
+    this.firmwarePath,
+    required this.engine,
+  });
 
   @override
-  State<EmulatorScreen> createState() => _EmulatorScreenState();
+  State<NativeEmulatorRunnerScreen> createState() => _NativeEmulatorRunnerScreenState();
 }
 
-class _EmulatorScreenState extends State<EmulatorScreen> with TickerProviderStateMixin {
-  late AnimationController _pulseController;
-  late AnimationController _gameRenderController;
-  Timer? _fpsTimer;
+class _NativeEmulatorRunnerScreenState extends State<NativeEmulatorRunnerScreen> {
+  Timer? _statsTimer;
+  Pointer<EmulatorStatsStruct>? _statsPointer;
 
-  double _currentFps = 59.8;
-  int _ramUsageMB = 4120;
-  int _cpuUsagePercent = 42;
-  String _deviceModel = "جاري الفحص...";
-  String _bootStatus = "تخصيص ذاكرة النظام FW 9.00...";
-  bool _isGameRunning = false;
-
-  final math.Random _random = math.Random();
+  double _fps = 0.0;
+  int _ram = 0;
+  int _cpu = 0;
+  bool _isRunning = false;
 
   @override
   void initState() {
     super.initState();
-    _getDeviceInfo();
-    _startBootSequence();
+    _statsPointer = calloc<EmulatorStatsStruct>();
 
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 2),
-    )..repeat(reverse: true);
+    // 1. بدء تشغيل المحاكي في المحرك المحلي
+    widget.engine.boot(widget.game.path, widget.firmwarePath);
 
-    _gameRenderController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 4),
-    )..repeat(reverse: true);
-
-    // تحديث مؤشرات الأداء بشكل حي
-    _fpsTimer = Timer.periodic(const Duration(milliseconds: 250), (timer) {
-      if (mounted) {
+    // 2. استقبال بيانات الأداء دورياً من كود C++
+    _statsTimer = Timer.periodic(const Duration(milliseconds: 200), (timer) {
+      if (mounted && _statsPointer != null) {
+        widget.engine.getStats(_statsPointer!);
         setState(() {
-          _currentFps = 58.5 + _random.nextDouble() * 1.5;
-          _ramUsageMB = 4000 + _random.nextInt(600);
-          _cpuUsagePercent = 35 + _random.nextInt(25);
+          _fps = _statsPointer!.ref.currentFps;
+          _ram = _statsPointer!.ref.ramUsageMb;
+          _cpu = _statsPointer!.ref.cpuLoadPercent;
+          _isRunning = _statsPointer!.ref.isRunning == 1;
         });
       }
     });
-  }
-
-  void _startBootSequence() {
-    Future.delayed(const Duration(seconds: 1), () {
-      if (mounted) setState(() => _bootStatus = "تحميل GoldHEN v2.3 وتهيئـة الثغـرة...");
-    });
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) setState(() => _bootStatus = "فك تشفير PKG وحاجز الحماية (Fake PKG Dynamic Hook)...");
-    });
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) {
-        setState(() {
-          _bootStatus = "النظام جاهز: تشغيل اللعبة عبر محرك FW 9.00!";
-          _isGameRunning = true;
-        });
-      }
-    });
-  }
-
-  Future<void> _getDeviceInfo() async {
-    final deviceInfo = DeviceInfoPlugin();
-    try {
-      if (Platform.isAndroid) {
-        final androidInfo = await deviceInfo.androidInfo;
-        setState(() {
-          _deviceModel = "${androidInfo.manufacturer.toUpperCase()} ${androidInfo.model}";
-        });
-      } else if (Platform.isIOS) {
-        final iosInfo = await deviceInfo.iosInfo;
-        setState(() {
-          _deviceModel = iosInfo.utsname.machine;
-        });
-      }
-    } catch (_) {
-      setState(() {
-        _deviceModel = "جهاز إفترضي";
-      });
-    }
   }
 
   @override
   void dispose() {
-    _pulseController.dispose();
-    _gameRenderController.dispose();
-    _fpsTimer?.cancel();
+    _statsTimer?.cancel();
+    widget.engine.stop();
+    if (_statsPointer != null) calloc.free(_statsPointer!);
     super.dispose();
   }
 
@@ -265,86 +381,40 @@ class _EmulatorScreenState extends State<EmulatorScreen> with TickerProviderStat
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // الخلفية البيئية للعبة أثناء التشغيل
+          // شاشة المحاكاة المركزية
           Center(
-            child: _isGameRunning
-                ? AnimatedBuilder(
-                    animation: _gameRenderController,
-                    builder: (context, child) {
-                      final val = _gameRenderController.value;
-                      return Container(
-                        width: double.infinity,
-                        height: double.infinity,
-                        decoration: BoxDecoration(
-                          gradient: RadialGradient(
-                            center: Alignment.center,
-                            radius: 1.2,
-                            colors: [
-                              Color.lerp(Colors.blue.shade900, Colors.purple.shade900, val)!,
-                              const Color(0xFF05050A),
-                            ],
-                          ),
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.play_circle_filled,
-                              size: 100,
-                              color: Color.lerp(Colors.cyanAccent, Colors.blueAccent, val),
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              widget.game.title,
-                              style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white),
-                            ),
-                            const SizedBox(height: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: Colors.green.withOpacity(0.2),
-                                border: Border.all(color: Colors.greenAccent),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: const Text(
-                                "بيئة اللعب نشطة - PS4 Firmware 9.00",
-                                style: TextStyle(color: Colors.greenAccent, fontSize: 13, fontWeight: FontWeight.w600),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  )
-                : Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      AnimatedBuilder(
-                        animation: _pulseController,
-                        builder: (context, child) {
-                          return Transform.scale(
-                            scale: 1.0 + (_pulseController.value * 0.1),
-                            child: const Icon(Icons.sports_esports, size: 80, color: Colors.cyanAccent),
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        widget.game.title,
-                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
-                      ),
-                      const SizedBox(height: 12),
-                      const CircularProgressIndicator(color: Colors.blueAccent),
-                      const SizedBox(height: 14),
-                      Text(
-                        _bootStatus,
-                        style: const TextStyle(color: Colors.amberAccent, fontSize: 13),
-                      ),
-                    ],
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.play_circle_filled, size: 90, color: Colors.cyanAccent),
+                const SizedBox(height: 12),
+                Text(
+                  widget.game.title,
+                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'المعرف: ${widget.game.titleId}',
+                  style: const TextStyle(color: Colors.cyanAccent, fontSize: 13),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: _isRunning ? Colors.green.withOpacity(0.2) : Colors.red.withOpacity(0.2),
+                    border: Border.all(color: _isRunning ? Colors.greenAccent : Colors.redAccent),
+                    borderRadius: BorderRadius.circular(20),
                   ),
+                  child: Text(
+                    _isRunning ? "محرك C++ يعمل بنجاح (Native Engine Active)" : "جاري التهيئة...",
+                    style: TextStyle(color: _isRunning ? Colors.greenAccent : Colors.redAccent, fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
           ),
 
-          // لوحة معلومات الأداء والـ Firmware 9.00
+          // لوحة تحكم ومراقبة الأداء
           Positioned(
             top: 16,
             left: 16,
@@ -358,18 +428,17 @@ class _EmulatorScreenState extends State<EmulatorScreen> with TickerProviderStat
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('النظام: PS4 System FW 9.00', style: TextStyle(color: Colors.cyanAccent, fontWeight: FontWeight.bold, fontSize: 12)),
+                  Text('FPS الحقيقي: ${_fps.toStringAsFixed(1)}', style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 13)),
                   const SizedBox(height: 4),
-                  Text('الإطارات (FPS): ${_currentFps.toStringAsFixed(1)}', style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 12)),
-                  Text('استهلاك الرام: $_ramUsageMB MB / 8000 MB', style: const TextStyle(color: Colors.white70, fontSize: 10)),
-                  Text('استهلاك المعالج: $_cpuUsagePercent%', style: const TextStyle(color: Colors.white70, fontSize: 10)),
-                  Text('الجهاز: $_deviceModel', style: const TextStyle(color: Colors.grey, fontSize: 10)),
+                  Text('استهلاك الرام: $_ram MB', style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                  Text('استهلاك المعالج: $_cpu%', style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                  Text('النظام: ${widget.firmwarePath != null ? "مرفق (Custom FW)" : "FW 9.00 افتراضي"}', style: const TextStyle(color: Colors.grey, fontSize: 10)),
                 ],
               ),
             ),
           ),
 
-          // زر إغلاق اللعبة
+          // زر إغلاق المحاكي
           Positioned(
             top: 16,
             right: 16,
@@ -379,7 +448,7 @@ class _EmulatorScreenState extends State<EmulatorScreen> with TickerProviderStat
             ),
           ),
 
-          // تحكم الأزرار الافتراضية
+          // أزرار التحكم اللمسية (Virtual Controller)
           Positioned(
             bottom: 20,
             left: 20,
