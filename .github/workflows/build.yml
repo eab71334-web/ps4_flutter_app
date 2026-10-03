@@ -31,8 +31,10 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Install Dependencies
-        run: flutter pub get
+      - name: Reconstruct Project & Platforms
+        run: |
+          flutter create . --org com.ps4app.app --platforms android,ios
+          flutter pub get
 
       - name: Build Android APK
         run: flutter build apk --release
@@ -56,8 +58,10 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Install Dependencies
-        run: flutter pub get
+      - name: Reconstruct Project & Platforms
+        run: |
+          flutter create . --org com.ps4app.app --platforms android,ios
+          flutter pub get
 
       - name: Build iOS App (No Codesign)
         run: flutter build ios --release --no-codesign
