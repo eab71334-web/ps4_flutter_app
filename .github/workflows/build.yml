@@ -22,11 +22,11 @@ jobs:
           flutter create . --platforms=ios
           flutter pub get
 
-      - name: Build iOS Application Payload
+      - name: Build Unsigned iOS Payload
         run: |
-          flutter build ios --release --no-codesign
+          flutter build ios --simulator --no-codesign
           mkdir -p Payload
-          cp -r build/ios/iphoneos/Runner.app Payload/
+          cp -r build/ios/iphonesimulator/Runner.app Payload/
           zip -r ps4_hybrid_engine.ipa Payload
 
       - name: Upload iOS IPA Artifact
