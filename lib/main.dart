@@ -70,8 +70,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               controller: ipController,
               style: const TextStyle(color: Colors.white),
               decoration: const InputDecoration(
-                enabledBorder: UnderlineInputBorder(borderSide: BorderSideColor(Colors.white38)),
-                focusedBorder: UnderlineInputBorder(borderSide: BorderSideColor(Color(0xFF00E676))),
+                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white38)),
+                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF00E676))),
               ),
             ),
             const SizedBox(height: 15),
@@ -83,8 +83,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               controller: idController,
               style: const TextStyle(color: Colors.white),
               decoration: const InputDecoration(
-                enabledBorder: UnderlineInputBorder(borderSide: BorderSideColor(Colors.white38)),
-                focusedBorder: UnderlineInputBorder(borderSide: BorderSideColor(Color(0xFF00E676))),
+                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white38)),
+                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF00E676))),
               ),
             ),
           ],
@@ -140,8 +140,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               children: [
                 const Icon(Icons.cast, color: Color(0xFF00E676), size: 18),
                 const SizedBox(width: 8),
-                Text('الهدف: $ps4Ip | الحالة: جاهز للبث المباشر جهاز PS4', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                const Spacer(),
+                Expanded(
+                  child: Text('الهدف: $ps4Ip | الحالة: جاهز للبث المباشر جهاز PS4', style: const TextStyle(fontSize: 12, color: Colors.grey), overflow: TextOverflow.ellipsis),
+                ),
                 TextButton(
                   onPressed: _showConnectionDialog,
                   child: const Text('تغيير IP', style: TextStyle(color: Colors.blueAccent, fontSize: 12)),
@@ -214,7 +215,7 @@ class StreamScreen extends StatelessWidget {
                   border: Border.all(color: const Color(0xFF00E676).withOpacity(0.5)),
                 ),
                 child: Column(
-                  crossAxisAlignment: CrossAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: const [
                     Text('زمن الاستجابة (Latency): 15 ms', style: TextStyle(color: Color(0xFF00E676), fontSize: 11, fontWeight: FontWeight.bold)),
                     SizedBox(height: 2),
@@ -280,6 +281,7 @@ class StreamScreen extends StatelessWidget {
                 children: [
                   const Icon(Icons.change_history, color: Color(0xFF00E676), size: 22),
                   Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: const [
                       Icon(Icons.crop_square, color: Colors.pinkAccent, size: 22),
                       SizedBox(width: 15),
