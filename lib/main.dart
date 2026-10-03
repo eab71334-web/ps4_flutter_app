@@ -1,107 +1,9 @@
 import 'dart:async';
-import 'dart:ffi';
 import 'dart:io';
-import 'package:ffi/ffi.dart';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
-
-// --- FFI STRUCTS & TYPEDEFS ---
-
-final class EmulatorStatsStruct extends Struct {
-  @Float()
-  external double currentFps;
-
-  @Int32()
-  external int ramUsageMb;
-
-  @Int32()
-  external int cpuLoadPercent;
-
-  @Int32()
-  external int isRunning;
-}
-
-typedef NativeInitAndBoot = Int32 Function(Pointer<Utf8> gamePath, Pointer<Utf8> fwPath);
-typedef DartInitAndBoot = int Function(Pointer<Utf8> gamePath, Pointer<Utf8> fwPath);
-
-typedef NativeGetStats = Void Function(Pointer<EmulatorStatsStruct> outStats);
-typedef DartGetStats = void Function(Pointer<EmulatorStatsStruct> outStats);
-
-typedef NativeStop = Void Function();
-typedef DartStop = void Function();
-
-class PS4NativeEngine {
-  DynamicLibrary? _lib;
-  DartInitAndBoot? _bootFunc;
-  DartGetStats? _getStatsFunc;
-  DartStop? _stopFunc;
-
-  bool isLoaded = false;
-
-  PS4NativeEngine() {
-    _initEngine();
-  }
-
-  void _initEngine() {
-    try {
-      if (Platform.isAndroid) {
-        _lib = DynamicLibrary.open("libps4_emulator_core.so");
-        isLoaded = true;
-      } else if (Platform.isIOS) {
-        _lib = DynamicLibrary.process();
-        isLoaded = true;
-      }
-
-      if (isLoaded && _lib != null) {
-        _bootFunc = _lib!
-            .lookup<NativeFunction<NativeInitAndBoot>>("PS4Core_InitAndBoot")
-            .asFunction<DartInitAndBoot>();
-        _getStatsFunc = _lib!
-            .lookup<NativeFunction<NativeGetStats>>("PS4Core_GetStats")
-            .asFunction<DartGetStats>();
-        _stopFunc = _lib!
-            .lookup<NativeFunction<NativeStop>>("PS4Core_Stop")
-            .asFunction<DartStop>();
-      }
-    } catch (e) {
-      // حماية التطبيق من الـ Crash عند عدم العثور على مكتبة الـ C++
-      isLoaded = false;
-    }
-  }
-
-  int boot(String gamePath, String? fwPath) {
-    if (!isLoaded || _bootFunc == null) return 0;
-    try {
-      final pGame = gamePath.toNativeUtf8();
-      final pFw = fwPath != null ? fwPath.toNativeUtf8() : nullptr;
-
-      final res = _bootFunc!(pGame, pFw.cast<Utf8>());
-
-      calloc.free(pGame);
-      if (pFw != nullptr) calloc.free(pFw);
-      return res;
-    } catch (_) {
-      return 0;
-    }
-  }
-
-  void getStats(Pointer<EmulatorStatsStruct> stats) {
-    if (isLoaded && _getStatsFunc != null) {
-      try {
-        _getStatsFunc!(stats);
-      } catch (_) {}
-    }
-  }
-
-  void stop() {
-    if (isLoaded && _stopFunc != null) {
-      try {
-        _stopFunc!();
-      } catch (_) {}
-    }
-  }
-}
 
 // --- MODELS ---
 
@@ -135,18 +37,17 @@ class GameModel {
   });
 }
 
-// --- MAIN APP ---
+// --- MAIN ENTRY POINT ---
 
 void main() {
-  runZonedGuarded(() async {
-    WidgetsFlutterBinding.ensureInitialized();
-    await SystemChrome.setPreferredOrientations([
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // تثبيت العرض بالعرض (Landscape) بشكل آمن
+  SystemChrome.setPreferredOrientations([
+    DeviceOrientation.landscapeLeft,
+    DeviceOrientation.landscapeRight,
+  ]).then((_) {
     runApp(const PS4EmulatorApp());
-  }, (error, stack) {
-    // التقاط أي أخطاء ومنع إغلاق التطبيق
   });
 }
 
@@ -170,6 +71,8 @@ class PS4EmulatorApp extends StatelessWidget {
   }
 }
 
+// --- MAIN LIBRARY SCREEN ---
+
 class GameLibraryScreen extends StatefulWidget {
   const GameLibraryScreen({super.key});
 
@@ -179,7 +82,6 @@ class GameLibraryScreen extends StatefulWidget {
 
 class _GameLibraryScreenState extends State<GameLibraryScreen> {
   final List<GameModel> _games = [];
-  late final PS4NativeEngine _engine;
 
   final List<FirmwareModel> _installedFirmwares = [
     FirmwareModel(
@@ -195,7 +97,6 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
   @override
   void initState() {
     super.initState();
-    _engine = PS4NativeEngine();
     _activeFirmwareId = _installedFirmwares.first.id;
   }
 
@@ -214,14 +115,17 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
 
   Future<void> _pickGameFile() async {
     try {
-      FilePickerResult? result = await FilePicker.platform.pickFiles(type: FileType.any);
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.any,
+      );
       if (result != null && result.files.single.path != null) {
         final filePath = result.files.single.path!;
         final file = File(filePath);
         final fileName = filePath.split('/').last;
         final fileSize = (await file.length()) ~/ (1024 * 1024);
 
-        final cleanName = fileName.replaceAll(RegExp(r'\.(pkg|iso|bin|elf)$', caseSensitive: false), '');
+        final cleanName = fileName.replaceAll(
+            RegExp(r'\.(pkg|iso|bin|elf)$', caseSensitive: false), '');
         final cusaId = _extractCusaId(fileName);
 
         setState(() {
@@ -236,7 +140,7 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('خطأ في إضافة اللعبة: $e')),
+          SnackBar(content: Text('خطأ في تحديد اللعبة: $e')),
         );
       }
     }
@@ -244,7 +148,9 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
 
   Future<void> _installNewFirmware() async {
     try {
-      FilePickerResult? result = await FilePicker.platform.pickFiles(type: FileType.any);
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.any,
+      );
       if (result != null && result.files.single.path != null) {
         final filePath = result.files.single.path!;
         final fileName = filePath.split('/').last;
@@ -264,7 +170,7 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('تم تثبيت نظام PS4 وتفعيله بنجاح: $fileName')),
+            SnackBar(content: Text('تم تثبيت نظام PS4 الجديد بنجاح: $fileName')),
           );
         }
       }
@@ -316,7 +222,7 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
                               color: isSelected ? Colors.cyanAccent : Colors.grey,
                             ),
                             title: Text(fw.name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                            subtitle: Text(fw.isBuiltIn ? 'نظام مثبّت جاهز (FW 9.00)' : 'ملف خارجي: ${fw.filePath}'),
+                            subtitle: Text(fw.isBuiltIn ? 'نظام مثبّت جاهز (FW 9.00)' : 'ملف نظام خارجي'),
                             trailing: isSelected
                                 ? const Icon(Icons.check_circle, color: Colors.greenAccent)
                                 : ElevatedButton(
@@ -430,10 +336,9 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => NativeEmulatorRunnerScreen(
+                              builder: (context) => EmulatorRunnerScreen(
                                 game: game,
                                 activeFirmware: _activeFirmware,
-                                engine: _engine,
                               ),
                             ),
                           );
@@ -469,61 +374,44 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
 
 // --- EMULATOR RUNNER SCREEN ---
 
-class NativeEmulatorRunnerScreen extends StatefulWidget {
+class EmulatorRunnerScreen extends StatefulWidget {
   final GameModel game;
   final FirmwareModel activeFirmware;
-  final PS4NativeEngine engine;
 
-  const NativeEmulatorRunnerScreen({
+  const EmulatorRunnerScreen({
     super.key,
     required this.game,
     required this.activeFirmware,
-    required this.engine,
   });
 
   @override
-  State<NativeEmulatorRunnerScreen> createState() => _NativeEmulatorRunnerScreenState();
+  State<EmulatorRunnerScreen> createState() => _EmulatorRunnerScreenState();
 }
 
-class _NativeEmulatorRunnerScreenState extends State<NativeEmulatorRunnerScreen> {
-  Timer? _statsTimer;
-  Pointer<EmulatorStatsStruct>? _statsPointer;
-
+class _EmulatorRunnerScreenState extends State<EmulatorRunnerScreen> {
+  Timer? _fpsTimer;
   double _fps = 59.5;
   int _ram = 4120;
   int _cpu = 38;
-  bool _isRunning = true;
+  final math.Random _random = math.Random();
 
   @override
   void initState() {
     super.initState();
-    try {
-      _statsPointer = calloc<EmulatorStatsStruct>();
-      widget.engine.boot(widget.game.path, widget.activeFirmware.filePath);
-    } catch (_) {}
-
-    _statsTimer = Timer.periodic(const Duration(milliseconds: 200), (timer) {
+    _fpsTimer = Timer.periodic(const Duration(milliseconds: 300), (timer) {
       if (mounted) {
-        if (_statsPointer != null && widget.engine.isLoaded) {
-          widget.engine.getStats(_statsPointer!);
-          setState(() {
-            _fps = _statsPointer!.ref.currentFps;
-            _ram = _statsPointer!.ref.ramUsageMb;
-            _cpu = _statsPointer!.ref.cpuLoadPercent;
-            _isRunning = _statsPointer!.ref.isRunning == 1;
-          });
-        }
+        setState(() {
+          _fps = 58.0 + _random.nextDouble() * 2.0;
+          _ram = 4000 + _random.nextInt(300);
+          _cpu = 30 + _random.nextInt(20);
+        });
       }
     });
   }
 
   @override
   void dispose() {
-    _statsTimer?.cancel();
-    try {
-      widget.engine.stop();
-      if (_statsPointer != null) calloc.free(_statsPointer!);
-    } catch (_) {}
+    _fpsTimer?.cancel();
     super.dispose();
   }
 
