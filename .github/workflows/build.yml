@@ -17,10 +17,10 @@ jobs:
         with:
           channel: 'stable'
 
-      - name: Add HTTP Dependency & Configure iOS
+      - name: Add Dependencies & Configure iOS
         run: |
           flutter pub add http
-          flutter create . --platforms=ios
+          flutter create --platforms=ios --org com.ps4hybrid .
           flutter pub get
 
       - name: Build Unsigned iOS Archive via xcodebuild
@@ -36,7 +36,6 @@ jobs:
                      CODE_SIGN_ENTITLEMENTS="" \
                      clean build
 
-          # Locate Runner.app dynamically and bundle IPA
           mkdir -p Payload
           APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "Runner.app" -type d | head -n 1)
           if [ -z "$APP_PATH" ]; then
@@ -69,10 +68,7 @@ jobs:
           clang -O2 -c main.c -o main.o
           clang main.o -o eboot.bin
 
-          # Generate PKG with 26MB zero padding
           python3 pkg_builder.py eboot.bin ps4_remote_host.pkg
-
-          # Compress to zip for ultra-fast upload/download
           zip -9 ps4_remote_host_compressed.zip ps4_remote_host.pkg
 
           mkdir -p ../output_pkg
