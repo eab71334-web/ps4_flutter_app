@@ -194,7 +194,7 @@ class _EmulatorScreenState extends State<EmulatorScreen> with WidgetsBindingObse
     } else if (Platform.isIOS) {
       final iosInfo = await deviceInfo.iosInfo;
       setState(() {
-        _deviceModel = iosInfo.utmMachine ?? iosInfo.model;
+        _deviceModel = iosInfo.utsname.machine;
       });
     }
   }
