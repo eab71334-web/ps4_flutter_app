@@ -50,29 +50,22 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install Compilers & Building Tools
+      - name: Install Compilers & Python
         run: |
           sudo apt-get update
           sudo apt-get install -y clang lld make gcc-multilib g++-multilib libc6-dev python3
 
-      - name: Compile PS4 Host & Package Real PKG
+      - name: Compile Host & Generate Authentic PKG
         run: |
-          # 1. Compile C Server Code
           cd ps4_server
           clang -O2 -c main.c -o main.o
           clang main.o -o eboot.bin
-          cd ..
+          
+          # Execute Custom Fake PKG Builder
+          python3 pkg_builder.py eboot.bin ps4_remote_host.pkg
 
-          # 2. Setup PS4 Official Directory Structure
-          mkdir -p build_pkg/sce_sys
-          cp ps4_server/eboot.bin build_pkg/eboot.bin
-
-          # 3. Create param.sfo metadata for PS4 GoldHEN Installer (CUSA05730)
-          printf "\x00\x50\x53\x34\x01\x00\x00\x00" > build_pkg/sce_sys/param.sfo
-
-          # 4. Generate Final Package File
-          mkdir -p output_pkg
-          tar -cvf output_pkg/ps4_remote_host.pkg -C build_pkg .
+          mkdir -p ../output_pkg
+          cp ps4_remote_host.pkg ../output_pkg/ps4_remote_host.pkg
 
       - name: Upload PS4 PKG File
         uses: actions/upload-artifact@v4
