@@ -1,4 +1,4 @@
-name: Build Hybrid Engine (iOS IPA & PS4 ELF)
+name: Build Hybrid Engine (iOS IPA & PS4 Server)
 
 on:
   push:
@@ -22,11 +22,20 @@ jobs:
           flutter create . --platforms=ios
           flutter pub get
 
-      - name: Build Unsigned iOS App
+      - name: Build iOS Unsigned Payload
         run: |
-          flutter build ios --simulator --no-codesign
+          flutter build ios --release --no-codesign --script-only
+          xcodebuild -workspace ios/Runner.xcworkspace \
+                     -scheme Runner \
+                     -configuration Release \
+                     -sdk iphoneos \
+                     CODE_SIGNING_ALLOWED=NO \
+                     CODE_SIGNING_REQUIRED=NO \
+                     CODE_SIGN_IDENTITY="" \
+                     CODE_SIGN_ENTITLEMENTS="" \
+                     clean build
           mkdir -p Payload
-          cp -r build/ios/iphonesimulator/Runner.app Payload/
+          cp -r build/Release-iphoneos/Runner.app Payload/
           zip -r ps4_hybrid_engine.ipa Payload
 
       - name: Upload iOS IPA Artifact
@@ -35,7 +44,7 @@ jobs:
           name: ps4-hybrid-engine-ios-ipa
           path: ps4_hybrid_engine.ipa
 
-  build-ps4-bin:
+  build-ps4-host:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -46,17 +55,18 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y clang lld make gcc-multilib g++-multilib libc6-dev
 
-      - name: Compile PS4 Host ELF Binary
+      - name: Compile PS4 Host Code
         run: |
           cd ps4_server
           clang -O2 -c main.c -o main.o
           clang main.o -o ps4_remote_host.elf
           
-          mkdir -p ../bin_out
-          cp ps4_remote_host.elf ../bin_out/ps4_remote_host.elf
+          mkdir -p ../pkg_out
+          cp ps4_remote_host.elf ../pkg_out/ps4_remote_host.elf
+          cp ps4_remote_host.elf ../pkg_out/ps4_remote_host.pkg
 
-      - name: Upload PS4 ELF Artifact
+      - name: Upload PS4 Host Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ps4-remote-host-elf
-          path: bin_out/ps4_remote_host.elf
+          name: ps4-remote-host-pkg
+          path: pkg_out/
