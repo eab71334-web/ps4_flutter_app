@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:system_info2/system_info2.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -58,7 +58,6 @@ class GameLibraryScreen extends StatefulWidget {
 class _GameLibraryScreenState extends State<GameLibraryScreen> {
   final List<GameModel> _games = [];
 
-  // استخراج المعرف الحقيقي CUSA من اسم الملف أو المسار
   String _extractCusaId(String fileName) {
     final regExp = RegExp(r'CUSA\d{5}', caseSensitive: false);
     final match = regExp.firstMatch(fileName);
@@ -70,9 +69,7 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
 
   Future<void> _openSystemFilePicker() async {
     try {
-      FilePickerResult? result = await FilePicker.platform.pickFiles(
-        type: FileType.any,
-      );
+      FilePickerResult? result = await FilePicker.platform.pickFiles(type: FileType.any);
 
       if (result != null && result.files.single.path != null) {
         final filePath = result.files.single.path!;
@@ -177,39 +174,33 @@ class _EmulatorScreenState extends State<EmulatorScreen> with WidgetsBindingObse
   double _realFps = 0.0;
   int _frameCount = 0;
   DateTime? _lastFpsCalcTime;
-  String _ramUsageInfo = "جاري الحساب...";
+  String _deviceModel = "جاري الفحص...";
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _startRealPerformanceMonitoring();
+    _getDeviceInfo();
+    _startFpsMonitoring();
   }
 
-  void _startRealPerformanceMonitoring() {
-    // حساب الفريمات الحقيقية المبنية على سرعة معالجة الشاشة
+  Future<void> _getDeviceInfo() async {
+    final deviceInfo = DeviceInfoPlugin();
+    if (Platform.isAndroid) {
+      final androidInfo = await deviceInfo.androidInfo;
+      setState(() {
+        _deviceModel = "${androidInfo.manufacturer.toUpperCase()} ${androidInfo.model}";
+      });
+    } else if (Platform.isIOS) {
+      final iosInfo = await deviceInfo.iosInfo;
+      setState(() {
+        _deviceModel = iosInfo.utmMachine ?? iosInfo.model;
+      });
+    }
+  }
+
+  void _startFpsMonitoring() {
     WidgetsBinding.instance.addPostFrameCallback((_) => _onFrameRendered());
-    
-    // قراءة ذاكرة الرام الحقيقية للنظام
-    Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) {
-        timer.cancel();
-        return;
-      }
-      try {
-        final totalMemory = SysInfo.getTotalPhysicalMemory() ~/ (1024 * 1024);
-        final freeMemory = SysInfo.getFreePhysicalMemory() ~/ (1024 * 1024);
-        final usedMemory = totalMemory - freeMemory;
-        
-        setState(() {
-          _ramUsageInfo = "${(usedMemory / 1024).toStringAsFixed(1)} GB / ${(totalMemory / 1024).toStringAsFixed(1)} GB";
-        });
-      } catch (_) {
-        setState(() {
-          _ramUsageInfo = "غير مدعوم على الجهاز";
-        });
-      }
-    });
   }
 
   void _onFrameRendered() {
@@ -251,11 +242,10 @@ class _EmulatorScreenState extends State<EmulatorScreen> with WidgetsBindingObse
                 Text(widget.game.title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
                 Text("المعرف: ${widget.game.titleId}", style: const TextStyle(color: Colors.cyanAccent, fontSize: 12)),
                 const SizedBox(height: 20),
-                const Text("جاري معالجة التعليمات البرمجية للملف...", style: TextStyle(color: Colors.grey)),
+                const Text("جاري معالجة البيانات وإعداد بيئة التشغيل...", style: TextStyle(color: Colors.grey)),
               ],
             ),
           ),
-          // العداد الحقيقي للفريمات والرام
           Positioned(
             top: 20,
             left: 20,
@@ -270,7 +260,7 @@ class _EmulatorScreenState extends State<EmulatorScreen> with WidgetsBindingObse
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('FPS الحقيقي: ${_realFps.toStringAsFixed(1)}', style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
-                  Text('الرام الحقيقية: $_ramUsageInfo', style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                  Text('جهاز التشغيل: $_deviceModel', style: const TextStyle(color: Colors.white70, fontSize: 11)),
                 ],
               ),
             ),
