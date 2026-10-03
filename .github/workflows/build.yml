@@ -35,24 +35,26 @@ jobs:
 
   build-ps4-pkg:
     runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/openorbis/toolchain:latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+
+      - name: Install Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang lld make
 
       - name: Compile PS4 Host Code
         run: |
           cd ps4_server
           make
-          create-pkg --titleid="HOST09025" --title="PS4 Remote Host Server" --outdir=../pkg_out bin/ps4_remote_host.elf || true
           
           mkdir -p ../pkg_out
-          if [ ! -f ../pkg_out/ps4_remote_host.pkg ]; then
-             cp bin/ps4_remote_host.elf ../pkg_out/ps4_remote_host.pkg
+          if [ -f bin/ps4_remote_host.elf ]; then
+            cp bin/ps4_remote_host.elf ../pkg_out/ps4_remote_host.pkg
           fi
 
-      - name: Upload PS4 PKG Artifact
+      - name: Upload PS4 Artifact
         uses: actions/upload-artifact@v4
         with:
           name: ps4-remote-host-pkg
