@@ -37,18 +37,11 @@ class GameModel {
   });
 }
 
-// --- MAIN ENTRY POINT ---
+// --- ENTRY POINT ---
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // تثبيت العرض بالعرض (Landscape) بشكل آمن
-  SystemChrome.setPreferredOrientations([
-    DeviceOrientation.landscapeLeft,
-    DeviceOrientation.landscapeRight,
-  ]).then((_) {
-    runApp(const PS4EmulatorApp());
-  });
+  runApp(const PS4EmulatorApp());
 }
 
 class PS4EmulatorApp extends StatelessWidget {
@@ -57,7 +50,7 @@ class PS4EmulatorApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'PS4 Emulator Pro Engine',
+      title: 'PS4 Emulator Pro',
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: const Color(0xFF0A0A0C),
@@ -71,7 +64,7 @@ class PS4EmulatorApp extends StatelessWidget {
   }
 }
 
-// --- MAIN LIBRARY SCREEN ---
+// --- GAME LIBRARY SCREEN ---
 
 class GameLibraryScreen extends StatefulWidget {
   const GameLibraryScreen({super.key});
@@ -140,7 +133,7 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('خطأ في تحديد اللعبة: $e')),
+          SnackBar(content: Text('خطأ أثناء اختيار اللعبة: $e')),
         );
       }
     }
@@ -170,7 +163,7 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('تم تثبيت نظام PS4 الجديد بنجاح: $fileName')),
+            SnackBar(content: Text('تم تثبيت نظام PS4 بنجاح: $fileName')),
           );
         }
       }
@@ -323,8 +316,8 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
                 : GridView.builder(
                     padding: const EdgeInsets.all(16),
                     gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 3,
-                      childAspectRatio: 0.8,
+                      crossAxisCount: 2,
+                      childAspectRatio: 1.1,
                       crossAxisSpacing: 12,
                       mainAxisSpacing: 12,
                     ),
@@ -353,10 +346,10 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Icon(Icons.sports_esports, size: 48, color: Colors.cyanAccent),
-                              const SizedBox(height: 8),
+                              const Icon(Icons.sports_esports, size: 42, color: Colors.cyanAccent),
+                              const SizedBox(height: 6),
                               Text(game.title, maxLines: 2, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center),
-                              const SizedBox(height: 4),
+                              const SizedBox(height: 2),
                               Text(game.titleId, style: const TextStyle(color: Colors.grey, fontSize: 11)),
                               Text('${game.fileSizeMB} MB', style: const TextStyle(color: Colors.blueAccent, fontSize: 10)),
                             ],
@@ -372,7 +365,7 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
   }
 }
 
-// --- EMULATOR RUNNER SCREEN ---
+// --- RUNNER SCREEN ---
 
 class EmulatorRunnerScreen extends StatefulWidget {
   final GameModel game;
@@ -419,108 +412,72 @@ class _EmulatorRunnerScreenState extends State<EmulatorRunnerScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      body: Stack(
-        children: [
-          Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.play_circle_filled, size: 90, color: Colors.cyanAccent),
-                const SizedBox(height: 12),
-                Text(
-                  widget.game.title,
-                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'المعرف: ${widget.game.titleId}',
-                  style: const TextStyle(color: Colors.cyanAccent, fontSize: 13),
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.green.withOpacity(0.2),
-                    border: Border.all(color: Colors.greenAccent),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    "المحاكي نشط (${widget.activeFirmware.name})",
-                    style: const TextStyle(color: Colors.greenAccent, fontSize: 12),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          Positioned(
-            top: 16,
-            left: 16,
-            child: Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.black87,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.blueAccent.withOpacity(0.8)),
-              ),
+      body: SafeArea(
+        child: Stack(
+          children: [
+            Center(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text('FPS الحقيقي: ${_fps.toStringAsFixed(1)}', style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 13)),
+                  const Icon(Icons.play_circle_filled, size: 80, color: Colors.cyanAccent),
+                  const SizedBox(height: 12),
+                  Text(
+                    widget.game.title,
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+                  ),
                   const SizedBox(height: 4),
-                  Text('استهلاك الرام: $_ram MB', style: const TextStyle(color: Colors.white70, fontSize: 11)),
-                  Text('استهلاك المعالج: $_cpu%', style: const TextStyle(color: Colors.white70, fontSize: 11)),
-                  Text('النظام المثبت: ${widget.activeFirmware.version}', style: const TextStyle(color: Colors.amberAccent, fontSize: 11)),
+                  Text(
+                    'المعرف: ${widget.game.titleId}',
+                    style: const TextStyle(color: Colors.cyanAccent, fontSize: 12),
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withOpacity(0.2),
+                      border: Border.all(color: Colors.greenAccent),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      "المحاكي نشط (${widget.activeFirmware.name})",
+                      style: const TextStyle(color: Colors.greenAccent, fontSize: 11),
+                    ),
+                  ),
                 ],
               ),
             ),
-          ),
 
-          Positioned(
-            top: 16,
-            right: 16,
-            child: IconButton(
-              icon: const Icon(Icons.power_settings_new, color: Colors.redAccent, size: 30),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ),
-
-          Positioned(
-            bottom: 20,
-            left: 20,
-            child: Opacity(
-              opacity: 0.6,
+            Positioned(
+              top: 10,
+              left: 10,
               child: Container(
-                width: 90,
-                height: 90,
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white54, width: 2),
+                  color: Colors.black87,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blueAccent.withOpacity(0.8)),
                 ),
-                child: const Center(child: Icon(Icons.open_with, color: Colors.white, size: 36)),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: 20,
-            right: 20,
-            child: Opacity(
-              opacity: 0.6,
-              child: SizedBox(
-                width: 90,
-                height: 90,
-                child: Stack(
-                  children: const [
-                    Align(alignment: Alignment.topCenter, child: Icon(Icons.change_history, color: Colors.greenAccent, size: 26)),
-                    Align(alignment: Alignment.bottomCenter, child: Icon(Icons.clear, color: Colors.blueAccent, size: 26)),
-                    Align(alignment: Alignment.centerLeft, child: Icon(Icons.crop_square, color: Colors.pinkAccent, size: 26)),
-                    Align(alignment: Alignment.centerRight, child: Icon(Icons.panorama_fish_eye, color: Colors.redAccent, size: 26)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('FPS: ${_fps.toStringAsFixed(1)}', style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 11)),
+                    Text('RAM: $_ram MB', style: const TextStyle(color: Colors.white70, fontSize: 10)),
+                    Text('CPU: $_cpu%', style: const TextStyle(color: Colors.white70, fontSize: 10)),
                   ],
                 ),
               ),
             ),
-          ),
-        ],
+
+            Positioned(
+              top: 10,
+              right: 10,
+              child: IconButton(
+                icon: const Icon(Icons.power_settings_new, color: Colors.redAccent, size: 28),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
