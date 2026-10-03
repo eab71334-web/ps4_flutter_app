@@ -65,6 +65,18 @@ jobs:
           flutter create . --org com.ps4app.app --platforms android,ios
           flutter pub get
 
+      - name: Inject iOS Permissions to Info.plist
+        run: |
+          PLIST="ios/Runner/Info.plist"
+          sed -i '' '/<\/dict>/i\
+          <key>NSPhotoLibraryUsageDescription<\/key>\
+          <string>Need access to pick game PKG files<\/string>\
+          <key>NSUIFileSharingEnabled<\/key>\
+          <true\/>\
+          <key>LSSupportsOpeningDocumentsInPlace<\/key>\
+          <true\/>\
+          ' $PLIST || true
+
       - name: Build iOS App for Simulator / Unsigned Payload
         run: flutter build ios --simulator --no-codesign
 
