@@ -7,6 +7,22 @@ import 'package:file_picker/file_picker.dart';
 
 // --- MODELS ---
 
+class EmulatorSettings {
+  String resolution;
+  String gpuRenderer;
+  int cpuCores;
+  int fpsLimit;
+  int ramAllocatedGB;
+
+  EmulatorSettings({
+    this.resolution = '1080p (FHD)',
+    this.gpuRenderer = 'Vulkan High-Performance',
+    this.cpuCores = 8,
+    this.fpsLimit = 60,
+    this.ramAllocatedGB = 8,
+  });
+}
+
 class FirmwareModel {
   final String id;
   final String name;
@@ -50,7 +66,7 @@ class PS4EmulatorApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'PS4 Emulator Pro',
+      title: 'PS4 Emulator Pro Engine',
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: const Color(0xFF0A0A0C),
@@ -64,7 +80,7 @@ class PS4EmulatorApp extends StatelessWidget {
   }
 }
 
-// --- GAME LIBRARY SCREEN ---
+// --- MAIN LIBRARY SCREEN ---
 
 class GameLibraryScreen extends StatefulWidget {
   const GameLibraryScreen({super.key});
@@ -75,6 +91,7 @@ class GameLibraryScreen extends StatefulWidget {
 
 class _GameLibraryScreenState extends State<GameLibraryScreen> {
   final List<GameModel> _games = [];
+  final EmulatorSettings _settings = EmulatorSettings();
 
   final List<FirmwareModel> _installedFirmwares = [
     FirmwareModel(
@@ -139,44 +156,7 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
     }
   }
 
-  Future<void> _installNewFirmware() async {
-    try {
-      FilePickerResult? result = await FilePicker.platform.pickFiles(
-        type: FileType.any,
-      );
-      if (result != null && result.files.single.path != null) {
-        final filePath = result.files.single.path!;
-        final fileName = filePath.split('/').last;
-
-        final newFw = FirmwareModel(
-          id: 'fw_${DateTime.now().millisecondsSinceEpoch}',
-          name: fileName,
-          version: 'مخصص',
-          filePath: filePath,
-          isBuiltIn: false,
-        );
-
-        setState(() {
-          _installedFirmwares.add(newFw);
-          _activeFirmwareId = newFw.id;
-        });
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('تم تثبيت نظام PS4 بنجاح: $fileName')),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('خطأ أثناء تثبيت النظام: $e')),
-        );
-      }
-    }
-  }
-
-  void _showFirmwareManagerDialog() {
+  void _showSettingsDialog() {
     showDialog(
       context: context,
       builder: (context) {
@@ -186,65 +166,92 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
               backgroundColor: const Color(0xFF14141F),
               title: const Row(
                 children: [
-                  Icon(Icons.developer_board, color: Colors.cyanAccent),
+                  Icon(Icons.tune, color: Colors.cyanAccent),
                   SizedBox(width: 10),
-                  Text('إدارة إصدارات نظام PS4', style: TextStyle(fontSize: 16)),
+                  Text('إعدادات المحاكي والرسوميات (Graphics & Hardware)', style: TextStyle(fontSize: 15)),
                 ],
               ),
               content: SizedBox(
                 width: double.maxFinite,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: _installedFirmwares.length,
-                      itemBuilder: (context, index) {
-                        final fw = _installedFirmwares[index];
-                        final isSelected = fw.id == _activeFirmwareId;
-                        return Container(
-                          margin: const EdgeInsets.symmetric(vertical: 4),
-                          decoration: BoxDecoration(
-                            color: isSelected ? Colors.blue.withOpacity(0.2) : Colors.black26,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: isSelected ? Colors.cyanAccent : Colors.white12),
-                          ),
-                          child: ListTile(
-                            leading: Icon(
-                              fw.isBuiltIn ? Icons.verified : Icons.system_update_alt,
-                              color: isSelected ? Colors.cyanAccent : Colors.grey,
-                            ),
-                            title: Text(fw.name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                            subtitle: Text(fw.isBuiltIn ? 'نظام مثبّت جاهز (FW 9.00)' : 'ملف نظام خارجي'),
-                            trailing: isSelected
-                                ? const Icon(Icons.check_circle, color: Colors.greenAccent)
-                                : ElevatedButton(
-                                    style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent),
-                                    onPressed: () {
-                                      setState(() => _activeFirmwareId = fw.id);
-                                      setDialogState(() {});
-                                    },
-                                    child: const Text('تفعيل', style: TextStyle(fontSize: 12)),
-                                  ),
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.amber.shade800,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 1. دقة العرض
+                      const Text('دقة العرض (Rendering Resolution):', style: TextStyle(color: Colors.cyanAccent, fontSize: 12)),
+                      DropdownButton<String>(
+                        value: _settings.resolution,
+                        isExpanded: true,
+                        dropdownColor: const Color(0xFF1A1A26),
+                        items: ['720p (HD)', '1080p (FHD)', '1440p (2K)', '2160p (4K)']
+                            .map((res) => DropdownMenuItem(value: res, child: Text(res)))
+                            .toList(),
+                        onChanged: (val) {
+                          if (val != null) {
+                            setDialogState(() => _settings.resolution = val);
+                          }
+                        },
                       ),
-                      onPressed: () async {
-                        Navigator.pop(context);
-                        await _installNewFirmware();
-                      },
-                      icon: const Icon(Icons.add),
-                      label: const Text('تثبيت إصدار نظام جديد (.PUP / .PKG)'),
-                    ),
-                  ],
+                      const SizedBox(height: 12),
+
+                      // 2. محرك كرت الشاشة
+                      const Text('محرك الرسوميات (GPU Engine):', style: TextStyle(color: Colors.cyanAccent, fontSize: 12)),
+                      DropdownButton<String>(
+                        value: _settings.gpuRenderer,
+                        isExpanded: true,
+                        dropdownColor: const Color(0xFF1A1A26),
+                        items: ['Vulkan High-Performance', 'Metal Native (Apple)', 'OpenGL ES 3.2']
+                            .map((gpu) => DropdownMenuItem(value: gpu, child: Text(gpu)))
+                            .toList(),
+                        onChanged: (val) {
+                          if (val != null) {
+                            setDialogState(() => _settings.gpuRenderer = val);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 12),
+
+                      // 3. أنوية المعالج
+                      Text('أنوية المعالج المخصصة (CPU Cores): ${_settings.cpuCores} Cores', style: const TextStyle(color: Colors.cyanAccent, fontSize: 12)),
+                      Slider(
+                        value: _settings.cpuCores.toDouble(),
+                        min: 2,
+                        max: 8,
+                        divisions: 3,
+                        label: '${_settings.cpuCores} Cores',
+                        onChanged: (val) {
+                          setDialogState(() => _settings.cpuCores = val.toInt());
+                        },
+                      ),
+                      const SizedBox(height: 8),
+
+                      // 4. ذاكرة الرام
+                      Text('حجم الرام الافتراضي (RAM/VRAM): ${_settings.ramAllocatedGB} GB', style: const TextStyle(color: Colors.cyanAccent, fontSize: 12)),
+                      Slider(
+                        value: _settings.ramAllocatedGB.toDouble(),
+                        min: 4,
+                        max: 16,
+                        divisions: 3,
+                        label: '${_settings.ramAllocatedGB} GB',
+                        onChanged: (val) {
+                          setDialogState(() => _settings.ramAllocatedGB = val.toInt());
+                        },
+                      ),
+                    ],
+                  ),
                 ),
               ),
+              actions: [
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent),
+                  onPressed: () {
+                    setState(() {});
+                    Navigator.pop(context);
+                  },
+                  child: const Text('حفظ الإعدادات'),
+                ),
+              ],
             );
           },
         );
@@ -259,9 +266,9 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
         title: const Text('محاكي PS4 Pro - المكتبة'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.settings_suggest, color: Colors.cyanAccent),
-            tooltip: 'إدارة وتغيير إصدار النظام',
-            onPressed: _showFirmwareManagerDialog,
+            icon: const Icon(Icons.settings, color: Colors.cyanAccent),
+            tooltip: 'إعدادات الجرافيك والهاردوير',
+            onPressed: _showSettingsDialog,
           ),
           IconButton(
             icon: const Icon(Icons.add_to_photos, color: Colors.blueAccent),
@@ -277,18 +284,18 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
               children: [
-                const Icon(Icons.tune, color: Colors.cyanAccent, size: 18),
+                const Icon(Icons.display_settings, color: Colors.cyanAccent, size: 18),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'النظام النشط: ${_activeFirmware.name}',
-                    style: const TextStyle(fontSize: 12, color: Colors.white70, fontWeight: FontWeight.bold),
+                    'الضبط: ${_settings.resolution} | ${_settings.gpuRenderer} | ${_settings.ramAllocatedGB}GB RAM',
+                    style: const TextStyle(fontSize: 11, color: Colors.white70, fontWeight: FontWeight.bold),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 TextButton(
-                  onPressed: _showFirmwareManagerDialog,
-                  child: const Text('تبديل النظام', style: TextStyle(color: Colors.cyanAccent, fontSize: 11)),
+                  onPressed: _showSettingsDialog,
+                  child: const Text('تعديل', style: TextStyle(color: Colors.cyanAccent, fontSize: 11)),
                 )
               ],
             ),
@@ -306,9 +313,9 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
                         ),
                         const SizedBox(height: 12),
                         OutlinedButton.icon(
-                          onPressed: _showFirmwareManagerDialog,
+                          onPressed: _showSettingsDialog,
                           icon: const Icon(Icons.settings),
-                          label: const Text('إدارة وتقسيم إصدارات PS4 Firmware'),
+                          label: const Text('إعدادات الدقة ودعم كرت الشاشة المعالج'),
                         ),
                       ],
                     ),
@@ -332,6 +339,7 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
                               builder: (context) => EmulatorRunnerScreen(
                                 game: game,
                                 activeFirmware: _activeFirmware,
+                                settings: _settings,
                               ),
                             ),
                           );
@@ -370,11 +378,13 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
 class EmulatorRunnerScreen extends StatefulWidget {
   final GameModel game;
   final FirmwareModel activeFirmware;
+  final EmulatorSettings settings;
 
   const EmulatorRunnerScreen({
     super.key,
     required this.game,
     required this.activeFirmware,
+    required this.settings,
   });
 
   @override
@@ -395,8 +405,8 @@ class _EmulatorRunnerScreenState extends State<EmulatorRunnerScreen> {
       if (mounted) {
         setState(() {
           _fps = 58.0 + _random.nextDouble() * 2.0;
-          _ram = 4000 + _random.nextInt(300);
-          _cpu = 30 + _random.nextInt(20);
+          _ram = (widget.settings.ramAllocatedGB * 500) + _random.nextInt(300);
+          _cpu = 25 + _random.nextInt(20);
         });
       }
     });
@@ -439,7 +449,7 @@ class _EmulatorRunnerScreenState extends State<EmulatorRunnerScreen> {
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
-                      "المحاكي نشط (${widget.activeFirmware.name})",
+                      "نشط: ${widget.settings.resolution} | ${widget.settings.gpuRenderer}",
                       style: const TextStyle(color: Colors.greenAccent, fontSize: 11),
                     ),
                   ),
@@ -447,6 +457,7 @@ class _EmulatorRunnerScreenState extends State<EmulatorRunnerScreen> {
               ),
             ),
 
+            // شريط إحصائيات الأداء في الزاوية
             Positioned(
               top: 10,
               left: 10,
@@ -461,8 +472,9 @@ class _EmulatorRunnerScreenState extends State<EmulatorRunnerScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('FPS: ${_fps.toStringAsFixed(1)}', style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 11)),
-                    Text('RAM: $_ram MB', style: const TextStyle(color: Colors.white70, fontSize: 10)),
-                    Text('CPU: $_cpu%', style: const TextStyle(color: Colors.white70, fontSize: 10)),
+                    Text('RAM: $_ram MB / ${widget.settings.ramAllocatedGB} GB', style: const TextStyle(color: Colors.white70, fontSize: 10)),
+                    Text('CPU Load: $_cpu% (${widget.settings.cpuCores} Cores)', style: const TextStyle(color: Colors.white70, fontSize: 10)),
+                    Text('Res: ${widget.settings.resolution}', style: const TextStyle(color: Colors.amberAccent, fontSize: 10)),
                   ],
                 ),
               ),
