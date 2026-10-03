@@ -2,37 +2,34 @@ name: Auto Create & Build Flutter (Android & iOS)
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
 
 jobs:
-  # --------------------------------------------------
-  # 1. بناء تطبيق أندرويد (APK)
-  # --------------------------------------------------
   build-android:
+    name: Build Android APK
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-      - name: Setup Java JDK
+      - name: Set up Java JDK
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Setup Flutter SDK
+      - name: Set up Flutter SDK
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.19.x'
           channel: 'stable'
           cache: true
-
-      - name: Auto Create Flutter Project Structure
-        run: |
-          flutter create . --org com.ps4app.app --project-name ps4_app
-
-      - name: Add Required Dependencies
-        run: |
-          flutter pub add http file_picker
 
       - name: Install Dependencies
         run: flutter pub get
@@ -43,44 +40,35 @@ jobs:
       - name: Upload Android APK
         uses: actions/upload-artifact@v4
         with:
-          name: PS4-Emulator-Android-APK
+          name: release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
 
-  # --------------------------------------------------
-  # 2. بناء تطبيق آيفون (IPA / iOS App)
-  # --------------------------------------------------
   build-ios:
+    name: Build iOS App Payload
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-      - name: Setup Flutter SDK
+      - name: Set up Flutter SDK
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.19.x'
           channel: 'stable'
           cache: true
-
-      - name: Auto Create Flutter Project Structure
-        run: |
-          flutter create . --org com.ps4app.app --project-name ps4_app
-
-      - name: Add Required Dependencies
-        run: |
-          flutter pub add http file_picker
 
       - name: Install Dependencies
         run: flutter pub get
 
-      - name: Build iOS App Payload
-        run: |
-          flutter build ios --release --no-codesign
-          mkdir -p Payload
-          mv build/ios/iphoneos/Runner.app Payload/
-          zip -r PS4_Emulator.ipa Payload
+      - name: Build iOS App (Simulator / No Codesign)
+        run: flutter build ios --simulator --no-codesign
 
-      - name: Upload iOS IPA
+      - name: Compress iOS App Payload
+        run: |
+          cd build/ios/iphonesimulator
+          zip -r Runner.zip Runner.app
+
+      - name: Upload iOS App Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PS4-Emulator-iOS-IPA
-          path: PS4_Emulator.ipa
+          name: runner-ios-app
+          path: build/ios/iphonesimulator/Runner.zip
