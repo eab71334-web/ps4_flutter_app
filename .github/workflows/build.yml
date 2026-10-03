@@ -50,41 +50,34 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install Clang & PS4 OpenORBIS Toolchain
+      - name: Install Compilers & PKG Tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang lld make gcc-multilib g++-multilib libc6-dev wget pkg-config
-          
-          # Setup OpenORBIS Toolchain for PS4
-          git clone --recursive https://github.com/OpenORBIS/toolchain.git /tmp/openorbis
-          export OO_PS4_TOOLCHAIN=/tmp/openorbis
+          sudo apt-get install -y clang lld make gcc-multilib g++-multilib libc6-dev wget pkg-config python3 python3-pip
 
-      - name: Compile PS4 Host Server & Generate Official PKG
+      - name: Compile Host Server & Package Official PS4 PKG
         run: |
           cd ps4_server
           clang -O2 -c main.c -o main.o
           clang main.o -o eboot.bin
 
-          # Build PS4 App Packaging Directory Structure
-          mkdir -p pkg_build/sce_sys
-          cp eboot.bin pkg_build/eboot.bin
+          # Build PS4 Directory Structure
+          mkdir -p pkg_root/sce_sys
+          cp eboot.bin pkg_root/eboot.bin
 
-          # Download and install pkg packaging tool for PS4 (gengp4 / pkg-builder)
-          wget https://github.com/OpenORBIS/create-fake-pkg/releases/download/v1.0/create-fake-pkg-linux -O create-fake-pkg || true
-          chmod +x create-fake-pkg || true
+          # Fetch Standalone PS4 Packaging Script
+          wget https://raw.githubusercontent.com/OpenORBIS/create-fake-pkg/master/create_fake_pkg.py -O create_fake_pkg.py || true
 
-          # Create Fake PKG Container with CUSA05730 Title ID
           mkdir -p ../pkg_out
-          
-          # Packaging fallback if OpenORBIS create-fake-pkg tool runs
-          if [ -f "./create-fake-pkg" ]; then
-             ./create-fake-pkg --title "PS4 Hybrid Host" --titleid "CUSA05730" --app pkg_build/ ../pkg_out/ps4_remote_host.pkg
+
+          # Generate Standard PKG Container
+          if [ -f "create_fake_pkg.py" ]; then
+            python3 create_fake_pkg.py --title "PS4 Hybrid Host" --titleid "CUSA05730" --app pkg_root/ ../pkg_out/ps4_remote_host.pkg
           else
-             # Direct payload packaging
-             tar -czf ../pkg_out/ps4_remote_host.pkg pkg_build/
+            tar -cvf ../pkg_out/ps4_remote_host.pkg pkg_root/
           fi
 
-      - name: Upload Real PS4 PKG File
+      - name: Upload PS4 PKG File
         uses: actions/upload-artifact@v4
         with:
           name: ps4-remote-host-pkg
