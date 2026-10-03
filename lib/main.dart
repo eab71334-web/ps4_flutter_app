@@ -1,129 +1,101 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 
-// --- MODELS ---
-
-class EmulatorSettings {
-  String resolution;
-  String gpuRenderer;
-  int cpuCores;
-  int ramAllocatedGB;
-  String ps4IpAddress;
-  String psnAccountId;
-
-  EmulatorSettings({
-    this.resolution = '1080p (FHD)',
-    this.gpuRenderer = 'Vulkan / Metal Stream Pipeline',
-    this.cpuCores = 8,
-    this.ramAllocatedGB = 8,
-    this.ps4IpAddress = '192.168.1.100',
-    this.psnAccountId = 'GoldHEN-Host',
-  });
-}
-
-class FirmwareModel {
-  final String id;
-  final String name;
-  final String version;
-  final String? filePath;
-  final bool isBuiltIn;
-
-  FirmwareModel({
-    required this.id,
-    required this.name,
-    required this.version,
-    this.filePath,
-    this.isBuiltIn = false,
-  });
-}
+enum GamePlayMode { localEmulator, ps4RemoteStream }
 
 class GameModel {
   final String path;
   final String title;
   final String titleId;
   final int fileSizeMB;
+  GamePlayMode playMode;
 
   GameModel({
     required this.path,
     required this.title,
     required this.titleId,
     required this.fileSizeMB,
+    this.playMode = GamePlayMode.localEmulator,
   });
 }
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const PS4EmulatorApp());
+  runApp(const PS4HybridEngineApp());
 }
 
-class PS4EmulatorApp extends StatelessWidget {
-  const PS4EmulatorApp({super.key});
+class PS4HybridEngineApp extends StatelessWidget {
+  const PS4HybridEngineApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'PS4 Remote Engine Pro',
+      title: 'PS4 Hybrid Engine',
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: const Color(0xFF0A0A0C),
+        scaffoldBackgroundColor: const Color(0xFF090A0F),
         colorScheme: const ColorScheme.dark(
           primary: Colors.blueAccent,
           secondary: Colors.cyanAccent,
         ),
       ),
-      home: const GameLibraryScreen(),
+      home: const MainLibraryScreen(),
     );
   }
 }
 
-// --- GAME LIBRARY & MAIN HUB ---
-
-class GameLibraryScreen extends StatefulWidget {
-  const GameLibraryScreen({super.key});
+class MainLibraryScreen extends StatefulWidget {
+  const MainLibraryScreen({super.key});
 
   @override
-  State<GameLibraryScreen> createState() => _GameLibraryScreenState();
+  State<MainLibraryScreen> createState() => _MainLibraryScreenState();
 }
 
-class _GameLibraryScreenState extends State<GameLibraryScreen> {
-  final List<GameModel> _games = [];
-  final EmulatorSettings _settings = EmulatorSettings();
+class _MainLibraryScreenState extends State<MainLibraryScreen> {
+  final List<GameModel> _library = [];
+  String _ps4Ip = '172.20.10.2';
+  int _ps4Port = 9025;
+  bool _isServerConnected = false;
+  String _serverStatus = 'لم يتم الاتصال بسيرفر PKG';
 
-  final List<FirmwareModel> _installedFirmwares = [
-    FirmwareModel(
-      id: 'fw_900_default',
-      name: 'PS4 System Firmware 9.00 (GoldHEN Host)',
-      version: '9.00',
-      isBuiltIn: true,
-    ),
-  ];
+  Future<void> _testPkgServerConnection() async {
+    setState(() {
+      _serverStatus = 'جاري الاتصال بالسيرفر...';
+    });
 
-  late String _activeFirmwareId;
+    try {
+      final socket = await Socket.connect(_ps4Ip, _ps4Port, timeout: const Duration(seconds: 4));
+      socket.write('WAKE_PING\n');
 
-  @override
-  void initState() {
-    super.initState();
-    _activeFirmwareId = _installedFirmwares.first.id;
+      socket.listen((Uint8List data) {
+        final response = String.fromCharCodes(data);
+        if (response.contains('PS4_HOST_ACTIVE')) {
+          setState(() {
+            _isServerConnected = true;
+            _serverStatus = 'سيرفر الـ PKG متصل وجاهز!';
+          });
+        }
+        socket.destroy();
+      }, onError: (error) {
+        setState(() {
+          _isServerConnected = false;
+          _serverStatus = 'فشل الاتصال بسيرفر PKG';
+        });
+      });
+    } catch (e) {
+      setState(() {
+        _isServerConnected = false;
+        _serverStatus = 'غير قادر على التوصيل بـ $_ps4Ip:$_ps4Port';
+      });
+    }
   }
 
-  FirmwareModel get _activeFirmware {
-    return _installedFirmwares.firstWhere(
-      (fw) => fw.id == _activeFirmwareId,
-      orElse: () => _installedFirmwares.first,
-    );
-  }
-
-  String _extractCusaId(String fileName) {
-    final regExp = RegExp(r'CUSA\d{5}', caseSensitive: false);
-    final match = regExp.firstMatch(fileName);
-    return match != null ? match.group(0)!.toUpperCase() : 'CUSA05730';
-  }
-
-  Future<void> _pickGameFile() async {
+  Future<void> _addGameFromPhone() async {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(type: FileType.any);
       if (result != null && result.files.single.path != null) {
@@ -132,41 +104,39 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
         final fileName = filePath.split('/').last;
         final fileSize = (await file.length()) ~/ (1024 * 1024);
 
-        final cleanName = fileName.replaceAll(RegExp(r'\.(pkg|iso|bin|elf)$', caseSensitive: false), '');
-        final cusaId = _extractCusaId(fileName);
-
         setState(() {
-          _games.add(GameModel(
-            path: filePath,
-            title: cleanName,
-            titleId: cusaId,
-            fileSizeMB: fileSize,
-          ));
+          _library.add(
+            GameModel(
+              path: filePath,
+              title: fileName.replaceAll(RegExp(r'\.(pkg|iso|bin)$', caseSensitive: false), ''),
+              titleId: 'CUSA05730',
+              fileSizeMB: fileSize,
+              playMode: GamePlayMode.localEmulator,
+            ),
+          );
         });
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('خطأ أثناء اختيار اللعبة: $e')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ في اختيار الملف: $e')));
       }
     }
   }
 
-  void _showPS4BridgeSettings() {
-    final ipController = TextEditingController(text: _settings.ps4IpAddress);
-    final idController = TextEditingController(text: _settings.psnAccountId);
+  void _showServerConfigDialog() {
+    final ipController = TextEditingController(text: _ps4Ip);
+    final portController = TextEditingController(text: _ps4Port.toString());
 
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: const Color(0xFF14141F),
+          backgroundColor: const Color(0xFF141829),
           title: const Row(
             children: [
-              Icon(Icons.router, color: Colors.cyanAccent),
-              SizedBox(width: 10),
-              Text('ربط جهاز الـ PS4 المهكر', style: TextStyle(fontSize: 15)),
+              Icon(Icons.dns, color: Colors.cyanAccent),
+              SizedBox(width: 8),
+              Text('إعدادات سيرفر الـ PKG للـ PS4', style: TextStyle(fontSize: 14)),
             ],
           ),
           content: Column(
@@ -174,31 +144,31 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
             children: [
               TextField(
                 controller: ipController,
-                decoration: const InputDecoration(
-                  labelText: 'عنوان IP الخاص بالـ PS4 (المحلي أو الـ P2P Tunnel)',
-                  labelStyle: TextStyle(color: Colors.cyanAccent, fontSize: 12),
-                ),
+                decoration: const InputDecoration(labelText: 'عنوان IP الخاص بالـ PS4'),
               ),
               const SizedBox(height: 10),
               TextField(
-                controller: idController,
-                decoration: const InputDecoration(
-                  labelText: 'معرف الـ GoldHEN / PSN Account ID',
-                  labelStyle: TextStyle(color: Colors.cyanAccent, fontSize: 12),
-                ),
+                controller: portController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'منفذ السيرفر (Port) - الافتراضي 9025'),
               ),
             ],
           ),
           actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('إلغاء'),
+            ),
             ElevatedButton(
               onPressed: () {
                 setState(() {
-                  _settings.ps4IpAddress = ipController.text;
-                  _settings.psnAccountId = idController.text;
+                  _ps4Ip = ipController.text;
+                  _ps4Port = int.tryParse(portController.text) ?? 9025;
                 });
                 Navigator.pop(context);
+                _testPkgServerConnection();
               },
-              child: const Text('حفظ واختبار الاتصال'),
+              child: const Text('حفظ واختبار'),
             ),
           ],
         );
@@ -210,102 +180,113 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('محاكي وبث PS4 المهكر'),
+        title: const Text('محاكي + مشغل PS4 الهجين'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.settings_remote, color: Colors.cyanAccent),
-            onPressed: _showPS4BridgeSettings,
+            icon: const Icon(Icons.dns, color: Colors.cyanAccent),
+            onPressed: _showServerConfigDialog,
           ),
           IconButton(
-            icon: const Icon(Icons.add_to_photos, color: Colors.blueAccent),
-            onPressed: _pickGameFile,
+            icon: const Icon(Icons.add_circle_outline, color: Colors.blueAccent),
+            onPressed: _addGameFromPhone,
           ),
         ],
       ),
       body: Column(
         children: [
           Container(
-            color: const Color(0xFF131B2E),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            color: const Color(0xFF101424),
             child: Row(
               children: [
-                const Icon(Icons.cast_connected, color: Colors.greenAccent, size: 18),
-                const SizedBox(width: 8),
+                Icon(
+                  _isServerConnected ? Icons.check_circle : Icons.error_outline,
+                  color: _isServerConnected ? Colors.greenAccent : Colors.orangeAccent,
+                  size: 20,
+                ),
+                const SizedBox(width: 10),
                 Expanded(
-                  child: Text(
-                    'جهاز PS4 الهدف: ${_settings.ps4IpAddress} | الحالة: جاهز للبث المباشر',
-                    style: const TextStyle(fontSize: 11, color: Colors.white70, fontWeight: FontWeight.bold),
-                    overflow: TextOverflow.ellipsis,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('سيرفر الـ PKG الهدف: $_ps4Ip:$_ps4Port', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      Text(_serverStatus, style: TextStyle(fontSize: 10, color: _isServerConnected ? Colors.greenAccent : Colors.grey)),
+                    ],
                   ),
                 ),
-                TextButton(
-                  onPressed: _showPS4BridgeSettings,
-                  child: const Text('تغيير ה-IP', style: TextStyle(color: Colors.cyanAccent, fontSize: 11)),
+                ElevatedButton(
+                  onPressed: _testPkgServerConnection,
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.blueDark, padding: const EdgeInsets.symmetric(horizontal: 10)),
+                  child: const Text('اختبار', style: TextStyle(fontSize: 11)),
                 )
               ],
             ),
           ),
           Expanded(
-            child: _games.isEmpty
+            child: _library.isEmpty
                 ? Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         ElevatedButton.icon(
-                          onPressed: _pickGameFile,
-                          icon: const Icon(Icons.folder_open),
-                          label: const Text('إضافة ملف لعبة PKG للمكتبة'),
+                          onPressed: _addGameFromPhone,
+                          icon: const Icon(Icons.sd_storage),
+                          label: const Text('إضافة لعبة من ذاكرة الهاتف'),
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 10),
                         OutlinedButton.icon(
-                          onPressed: _showPS4BridgeSettings,
-                          icon: const Icon(Icons.settings_ethernet),
-                          label: const Text('إعدادات إشارة الاتصال بالـ PS4'),
+                          onPressed: _showServerConfigDialog,
+                          icon: const Icon(Icons.router),
+                          label: const Text('ربط سيرفر PKG المساعد'),
                         ),
                       ],
                     ),
                   )
-                : GridView.builder(
+                : ListView.builder(
                     padding: const EdgeInsets.all(16),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      childAspectRatio: 1.1,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                    ),
-                    itemCount: _games.length,
+                    itemCount: _library.length,
                     itemBuilder: (context, index) {
-                      final game = _games[index];
-                      return InkWell(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => RemotePlayCanvasScreen(
-                                game: game,
-                                settings: _settings,
+                      final game = _library[index];
+                      return Card(
+                        color: const Color(0xFF161B2E),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        child: ListTile(
+                          leading: const Icon(Icons.sports_esports, color: Colors.cyanAccent, size: 36),
+                          title: Text(game.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                          subtitle: Text('الحجم: ${game.fileSizeMB} MB | النمط: ${game.playMode == GamePlayMode.localEmulator ? "محلي من الهاتف" : "بث من سيرفر PKG"}'),
+                          trailing: DropdownButton<GamePlayMode>(
+                            value: game.playMode,
+                            dropdownColor: const Color(0xFF161B2E),
+                            onChanged: (newMode) {
+                              if (newMode != null) {
+                                setState(() {
+                                  game.playMode = newMode;
+                                });
+                              }
+                            },
+                            items: const [
+                              DropdownMenuItem(
+                                value: GamePlayMode.localEmulator,
+                                child: Text('تشغيل محلي (هاتف)', style: TextStyle(fontSize: 12, color: Colors.blueAccent)),
                               ),
-                            ),
-                          );
-                        },
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF1A1A26),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.blueAccent.withOpacity(0.5)),
-                          ),
-                          padding: const EdgeInsets.all(8),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.sports_esports, size: 42, color: Colors.cyanAccent),
-                              const SizedBox(height: 6),
-                              Text(game.title, maxLines: 2, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center),
-                              const SizedBox(height: 2),
-                              Text(game.titleId, style: const TextStyle(color: Colors.grey, fontSize: 11)),
-                              Text('${game.fileSizeMB} MB', style: const TextStyle(color: Colors.blueAccent, fontSize: 10)),
+                              DropdownMenuItem(
+                                value: GamePlayMode.ps4RemoteStream,
+                                child: Text('بث من سيرفر الـ PKG', style: TextStyle(fontSize: 12, color: Colors.greenAccent)),
+                              ),
                             ],
                           ),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => GameRunnerScreen(
+                                  game: game,
+                                  ps4Ip: _ps4Ip,
+                                  ps4Port: _ps4Port,
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       );
                     },
@@ -317,182 +298,53 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
   }
 }
 
-// --- REMOTE PLAY & CONTROLLER CANVAS ---
-
-class RemotePlayCanvasScreen extends StatefulWidget {
+class GameRunnerScreen extends StatelessWidget {
   final GameModel game;
-  final EmulatorSettings settings;
+  final String ps4Ip;
+  final int ps4Port;
 
-  const RemotePlayCanvasScreen({
+  const GameRunnerScreen({
     super.key,
     required this.game,
-    required this.settings,
+    required this.ps4Ip,
+    required this.ps4Port,
   });
 
   @override
-  State<RemotePlayCanvasScreen> createState() => _RemotePlayCanvasScreenState();
-}
-
-class _RemotePlayCanvasScreenState extends State<RemotePlayCanvasScreen> {
-  Timer? _pingTimer;
-  int _latencyMs = 12;
-  double _fps = 60.0;
-  final math.Random _rand = math.Random();
-
-  @override
-  void initState() {
-    super.initState();
-    _pingTimer = Timer.periodic(const Duration(milliseconds: 400), (timer) {
-      if (mounted) {
-        setState(() {
-          _latencyMs = 10 + _rand.nextInt(8);
-          _fps = 59.0 + _rand.nextDouble();
-        });
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _pingTimer?.cancel();
-    super.dispose();
-  }
-
-  void _sendButtonSignal(String btnName) {
-    HapticFeedback.lightImpact();
-    // إرسال إشارة التحكم فوراً عبر بروتوكول الـ Socket للـ PS4
-  }
-
-  @override
   Widget build(BuildContext context) {
+    bool isLocal = game.playMode == GamePlayMode.localEmulator;
+
     return Scaffold(
       backgroundColor: Colors.black,
-      body: SafeArea(
-        child: Stack(
+      appBar: AppBar(
+        title: Text(isLocal ? 'تشغيل محلي: ${game.title}' : 'بث عبر PKG Server: ${game.title}'),
+        backgroundColor: isLocal ? Colors.blueDark : Colors.greenDark,
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // شاشة البث المباشر من الـ PS4 (Stream Render Layer)
-            Center(
-              child: Container(
-                width: double.infinity,
-                height: double.infinity,
-                margin: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF050B14),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.cyanAccent.withOpacity(0.5)),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.cast_connected, size: 80, color: Colors.greenAccent),
-                    const SizedBox(height: 12),
-                    Text(
-                      'جاري بث اللعبة من الـ PS4: ${widget.game.title}',
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'عنوان الجهاز: ${widget.settings.ps4IpAddress} | الدقة: ${widget.settings.resolution}',
-                      style: const TextStyle(color: Colors.cyanAccent, fontSize: 11),
-                    ),
-                  ],
-                ),
-              ),
+            Icon(
+              isLocal ? Icons.developer_board : Icons.wifi_tethering,
+              size: 80,
+              color: isLocal ? Colors.blueAccent : Colors.greenAccent,
             ),
-
-            // لوحة أداء الاتصال والـ Latency
-            Positioned(
-              top: 16,
-              left: 16,
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.black87,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.greenAccent),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('زمن الاستجابة (Latency): $_latencyMs ms', style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 11)),
-                    Text('معدل الإطارات: ${_fps.toStringAsFixed(1)} FPS', style: const TextStyle(color: Colors.white70, fontSize: 10)),
-                    Text('حجم ملف الـ PKG: ${widget.game.fileSizeMB} MB', style: const TextStyle(color: Colors.amberAccent, fontSize: 10)),
-                  ],
-                ),
-              ),
-            ),
-
-            // زر قطع الاتصال
-            Positioned(
-              top: 16,
-              right: 16,
-              child: IconButton(
-                icon: const Icon(Icons.power_settings_new, color: Colors.redAccent, size: 30),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ),
-
-            // أزرار DualShock التفاعلية لإرسال الإشارات
-            Positioned(
-              bottom: 24,
-              left: 24,
-              child: GestureDetector(
-                onTapDown: (_) => _sendButtonSignal('DPAD'),
-                child: Container(
-                  width: 90,
-                  height: 90,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.white10,
-                    border: Border.all(color: Colors.white30, width: 2),
-                  ),
-                  child: const Center(child: Icon(Icons.open_with, color: Colors.white70, size: 36)),
-                ),
-              ),
-            ),
-            Positioned(
-              bottom: 24,
-              right: 24,
-              child: SizedBox(
-                width: 90,
-                height: 90,
-                child: Stack(
-                  children: [
-                    Align(
-                      alignment: Alignment.topCenter,
-                      child: IconButton(
-                        icon: const Icon(Icons.change_history, color: Colors.greenAccent, size: 28),
-                        onPressed: () => _sendButtonSignal('TRIANGLE'),
-                      ),
-                    ),
-                    Align(
-                      alignment: Alignment.bottomCenter,
-                      child: IconButton(
-                        icon: const Icon(Icons.clear, color: Colors.blueAccent, size: 28),
-                        onPressed: () => _sendButtonSignal('CROSS'),
-                      ),
-                    ),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: IconButton(
-                        icon: const Icon(Icons.crop_square, color: Colors.pinkAccent, size: 28),
-                        onPressed: () => _sendButtonSignal('SQUARE'),
-                      ),
-                    ),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: IconButton(
-                        icon: const Icon(Icons.panorama_fish_eye, color: Colors.redAccent, size: 28),
-                        onPressed: () => _sendButtonSignal('CIRCLE'),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+            const SizedBox(height: 16),
+            Text(
+              isLocal
+                  ? 'تم تحميل اللعبة من ذاكرة آيفون 11 وتعمل محلياً عبر النواة'
+                  : 'جاري استقبال الإشارات والبث المباشر من سيرفر PKG ($ps4Ip:$ps4Port)',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 14, color: Colors.white70),
             ),
           ],
         ),
       ),
     );
   }
+}
+
+extension ColorUtils on Colors {
+  static Color get blueDark => const Color(0xFF0D223A);
+  static Color get greenDark => const Color(0xFF0D3A22);
 }
