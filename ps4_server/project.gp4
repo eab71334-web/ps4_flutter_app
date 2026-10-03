@@ -1,20 +1,14 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?>
-<ps4_project version="1.0">
+<?xml version="1.0" encoding="utf-8"?>
+<nStructuredVolume version="1.0">
   <volume>
-    <volume_type>pkg_ps4_app</volume_type>
-    <volume_id>PS4_VOLUME</volume_id>
-    <volume_ts>2026-10-03 00:00:00</volume_ts>
-    <package_version>01.00</package_version>
-    <package_sub_version>00</package_sub_version>
-    <application_param>
-      <title_id>CUSA05730</title_id>
-      <content_id>IV0000-CUSA05730_00-PS4HYBRIDAPP0000</content_id>
-      <title_name>PS4 Hybrid Controller Server</title_name>
-      <system_ver>0x05050000</system_ver>
-      <sdk_ver>0x05050000</sdk_ver>
-    </application_param>
+    <volume_id>PS4Volume</volume_id>
+    <package image_path="ps4_remote_host.pkg" format="pkg">
+      <volume_type>pkg_ps4_app</volume_type>
+      <param_sfo_path>param.sfo</param_sfo_path>
+      <icon0_path>icon0.png</icon0_path>
+    </package>
   </volume>
-  <files hint="System_Files">
-    <file orig_path="eboot.bin" target_path="sce_sys/eboot.bin" />
+  <files count="1">
+    <file target_path="eboot.bin" source_path="eboot.bin" />
   </files>
-</ps4_project>
+</nStructuredVolume>
