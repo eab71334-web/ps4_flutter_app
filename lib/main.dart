@@ -31,8 +31,6 @@ typedef DartGetStats = void Function(Pointer<EmulatorStatsStruct> outStats);
 typedef NativeStop = Void Function();
 typedef DartStop = void Function();
 
-// --- ENGINE BRIDGE CLASS ---
-
 class PS4NativeEngine {
   DynamicLibrary? _lib;
   DartInitAndBoot? _bootFunc;
@@ -92,35 +90,22 @@ class PS4NativeEngine {
   }
 }
 
-// --- FLUTTER APPLICATION ---
+// --- MODELS ---
 
-void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-  SystemChrome.setPreferredOrientations([
-    DeviceOrientation.landscapeLeft,
-    DeviceOrientation.landscapeRight,
-  ]);
-  runApp(const PS4EmulatorApp());
-}
+class FirmwareModel {
+  final String id;
+  final String name;
+  final String version;
+  final String? filePath;
+  final bool isBuiltIn;
 
-class PS4EmulatorApp extends StatelessWidget {
-  const PS4EmulatorApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'PS4 Native Engine (shadPS4/fpPS4 Core)',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: const Color(0xFF0A0A0C),
-        colorScheme: const ColorScheme.dark(
-          primary: Colors.blueAccent,
-          secondary: Colors.cyanAccent,
-        ),
-      ),
-      home: const GameLibraryScreen(),
-    );
-  }
+  FirmwareModel({
+    required this.id,
+    required this.name,
+    required this.version,
+    this.filePath,
+    this.isBuiltIn = false,
+  });
 }
 
 class GameModel {
@@ -137,6 +122,37 @@ class GameModel {
   });
 }
 
+// --- MAIN APP ---
+
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  SystemChrome.setPreferredOrientations([
+    DeviceOrientation.landscapeLeft,
+    DeviceOrientation.landscapeRight,
+  ]);
+  runApp(const PS4EmulatorApp());
+}
+
+class PS4EmulatorApp extends StatelessWidget {
+  const PS4EmulatorApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'PS4 Emulator Pro Engine',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData.dark().copyWith(
+        scaffoldBackgroundColor: const Color(0xFF0A0A0C),
+        colorScheme: const ColorScheme.dark(
+          primary: Colors.blueAccent,
+          secondary: Colors.cyanAccent,
+        ),
+      ),
+      home: const GameLibraryScreen(),
+    );
+  }
+}
+
 class GameLibraryScreen extends StatefulWidget {
   const GameLibraryScreen({super.key});
 
@@ -146,8 +162,32 @@ class GameLibraryScreen extends StatefulWidget {
 
 class _GameLibraryScreenState extends State<GameLibraryScreen> {
   final List<GameModel> _games = [];
-  String? _firmwarePath;
   final PS4NativeEngine _engine = PS4NativeEngine();
+
+  // قائمة إصدارات النظام المثبتة (الإصدار 9.00 مدمج وجاهز افتراضياً)
+  final List<FirmwareModel> _installedFirmwares = [
+    FirmwareModel(
+      id: 'fw_900_default',
+      name: 'PS4 System Firmware 9.00 (GoldHEN Gold Edition)',
+      version: '9.00',
+      isBuiltIn: true,
+    ),
+  ];
+
+  late String _activeFirmwareId;
+
+  @override
+  void initState() {
+    super.initState();
+    _activeFirmwareId = _installedFirmwares.first.id;
+  }
+
+  FirmwareModel get _activeFirmware {
+    return _installedFirmwares.firstWhere(
+      (fw) => fw.id == _activeFirmwareId,
+      orElse: () => _installedFirmwares.first,
+    );
+  }
 
   String _extractCusaId(String fileName) {
     final regExp = RegExp(r'CUSA\d{5}', caseSensitive: false);
@@ -179,44 +219,134 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('خطأ أثناء تحميل اللعبة: $e')),
+          SnackBar(content: Text('خطأ في إضافة اللعبة: $e')),
         );
       }
     }
   }
 
-  Future<void> _pickFirmwareFile() async {
+  Future<void> _installNewFirmware() async {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(type: FileType.any);
       if (result != null && result.files.single.path != null) {
+        final filePath = result.files.single.path!;
+        final fileName = filePath.split('/').last;
+
+        final newFw = FirmwareModel(
+          id: 'fw_${DateTime.now().millisecondsSinceEpoch}',
+          name: fileName,
+          version: 'مخصص',
+          filePath: filePath,
+          isBuiltIn: false,
+        );
+
         setState(() {
-          _firmwarePath = result.files.single.path!;
+          _installedFirmwares.add(newFw);
+          _activeFirmwareId = newFw.id; // تفعيل النظام الجديد تلقائياً بعد تثبيته
         });
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('تم إرفاق البرمجية الثابتة/التحديث: ${_firmwarePath!.split('/').last}')),
+            SnackBar(content: Text('تم تثبيت نظام PS4 وتفعيله بنجاح: $fileName')),
           );
         }
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('خطأ في تحميل ملف النظام: $e')),
+          SnackBar(content: Text('خطأ أثناء تثبيت النظام: $e')),
         );
       }
     }
+  }
+
+  void _showFirmwareManagerDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulWidget(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF14141F),
+              title: const Row(
+                children: [
+                  Icon(Icons.developer_board, color: Colors.cyanAccent),
+                  SizedBox(width: 10),
+                  Text('إدارة إصدارات نظام PS4 (Firmware)', style: TextStyle(fontSize: 16)),
+                ],
+              ),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: _installedFirmwares.length,
+                      itemBuilder: (context, index) {
+                        final fw = _installedFirmwares[index];
+                        final isSelected = fw.id == _activeFirmwareId;
+                        return Container(
+                          margin: const EdgeInsets.symmetric(vertical: 4),
+                          decoration: BoxDecoration(
+                            color: isSelected ? Colors.blue.withOpacity(0.2) : Colors.black26,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: isSelected ? Colors.cyanAccent : Colors.white12),
+                          ),
+                          child: ListTile(
+                            leading: Icon(
+                              fw.isBuiltIn ? Icons.verified : Icons.system_update_alt,
+                              color: isSelected ? Colors.cyanAccent : Colors.grey,
+                            ),
+                            title: Text(fw.name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                            subtitle: Text(fw.isBuiltIn ? 'نظام مثبّت جاهز (FW 9.00)' : 'ملف خارجي: ${fw.filePath}'),
+                            trailing: isSelected
+                                ? const Icon(Icons.check_circle, color: Colors.greenAccent)
+                                : ElevatedButton(
+                                    style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent),
+                                    onPressed: () {
+                                      setState(() => _activeFirmwareId = fw.id);
+                                      setDialogState(() {});
+                                    },
+                                    child: const Text('تفعيل', style: TextStyle(fontSize: 12)),
+                                  ),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.amber.shade800,
+                        minimumSize: const Size(double.infinity, 45),
+                      ),
+                      onPressed: () async {
+                        Navigator.pop(context);
+                        await _installNewFirmware();
+                      },
+                      icon: const Icon(Icons.add),
+                      label: const Text('تثبيت إصدار نظام جديد (.PUP / .PKG)'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('محاكي PS4 Native Core - المكتبة'),
+        title: const Text('محاكي PS4 Pro - المكتبة'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.system_update_alt, color: Colors.amberAccent),
-            tooltip: 'إضافة ملف نظام/تحديث (FW / Patch)',
-            onPressed: _pickFirmwareFile,
+            icon: const Icon(Icons.settings_suggest, color: Colors.cyanAccent),
+            tooltip: 'إدارة وتغيير إصدار النظام',
+            onPressed: _showFirmwareManagerDialog,
           ),
           IconButton(
             icon: const Icon(Icons.add_to_photos, color: Colors.blueAccent),
@@ -227,24 +357,28 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
       ),
       body: Column(
         children: [
-          if (_firmwarePath != null)
-            Container(
-              color: Colors.blueGrey.shade900,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                children: [
-                  const Icon(Icons.check_circle, color: Colors.greenAccent, size: 18),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'ملف النظام المرفق: ${_firmwarePath!.split('/').last}',
-                      style: const TextStyle(fontSize: 12, color: Colors.white70),
-                      overflow: TextOverflow.ellipsis,
-                    ),
+          // شريط إظهار النظام النشط حالياً
+          Container(
+            color: const Color(0xFF131B2E),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
+                const Icon(Icons.tune, color: Colors.cyanAccent, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'النظام النشط: ${_activeFirmware.name}',
+                    style: const TextStyle(fontSize: 12, color: Colors.white70, fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ],
-              ),
+                ),
+                TextButton(
+                  onPressed: _showFirmwareManagerDialog,
+                  child: const Text('تبديل النظام', style: TextStyle(color: Colors.cyanAccent, fontSize: 11)),
+                )
+              ],
             ),
+          ),
           Expanded(
             child: _games.isEmpty
                 ? Center(
@@ -254,13 +388,13 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
                         ElevatedButton.icon(
                           onPressed: _pickGameFile,
                           icon: const Icon(Icons.folder_open),
-                          label: const Text('إضافة لعبة (.pkg / .elf)'),
+                          label: const Text('إضافة لعبة PKG جديدة'),
                         ),
                         const SizedBox(height: 12),
                         OutlinedButton.icon(
-                          onPressed: _pickFirmwareFile,
-                          icon: const Icon(Icons.file_upload),
-                          label: const Text('إضافة ملف نظام أو تحديث (Firmware 9.00 / Patch)'),
+                          onPressed: _showFirmwareManagerDialog,
+                          icon: const Icon(Icons.settings),
+                          label: const Text('إدارة وتقسيم إصدارات PS4 Firmware'),
                         ),
                       ],
                     ),
@@ -283,7 +417,7 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
                             MaterialPageRoute(
                               builder: (context) => NativeEmulatorRunnerScreen(
                                 game: game,
-                                firmwarePath: _firmwarePath,
+                                activeFirmware: _activeFirmware,
                                 engine: _engine,
                               ),
                             ),
@@ -322,13 +456,13 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
 
 class NativeEmulatorRunnerScreen extends StatefulWidget {
   final GameModel game;
-  final String? firmwarePath;
+  final FirmwareModel activeFirmware;
   final PS4NativeEngine engine;
 
   const NativeEmulatorRunnerScreen({
     super.key,
     required this.game,
-    this.firmwarePath,
+    required this.activeFirmware,
     required this.engine,
   });
 
@@ -350,10 +484,9 @@ class _NativeEmulatorRunnerScreenState extends State<NativeEmulatorRunnerScreen>
     super.initState();
     _statsPointer = calloc<EmulatorStatsStruct>();
 
-    // 1. بدء تشغيل المحاكي في المحرك المحلي
-    widget.engine.boot(widget.game.path, widget.firmwarePath);
+    // إقلاع المحرك مع النظام المختار
+    widget.engine.boot(widget.game.path, widget.activeFirmware.filePath);
 
-    // 2. استقبال بيانات الأداء دورياً من كود C++
     _statsTimer = Timer.periodic(const Duration(milliseconds: 200), (timer) {
       if (mounted && _statsPointer != null) {
         widget.engine.getStats(_statsPointer!);
@@ -381,7 +514,6 @@ class _NativeEmulatorRunnerScreenState extends State<NativeEmulatorRunnerScreen>
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // شاشة المحاكاة المركزية
           Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -406,7 +538,7 @@ class _NativeEmulatorRunnerScreenState extends State<NativeEmulatorRunnerScreen>
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
-                    _isRunning ? "محرك C++ يعمل بنجاح (Native Engine Active)" : "جاري التهيئة...",
+                    _isRunning ? "المحاكي نشط (${widget.activeFirmware.name})" : "جاري التهيئة...",
                     style: TextStyle(color: _isRunning ? Colors.greenAccent : Colors.redAccent, fontSize: 12),
                   ),
                 ),
@@ -414,7 +546,7 @@ class _NativeEmulatorRunnerScreenState extends State<NativeEmulatorRunnerScreen>
             ),
           ),
 
-          // لوحة تحكم ومراقبة الأداء
+          // لوحة معلومات الأداء والإصدار النشط
           Positioned(
             top: 16,
             left: 16,
@@ -432,13 +564,13 @@ class _NativeEmulatorRunnerScreenState extends State<NativeEmulatorRunnerScreen>
                   const SizedBox(height: 4),
                   Text('استهلاك الرام: $_ram MB', style: const TextStyle(color: Colors.white70, fontSize: 11)),
                   Text('استهلاك المعالج: $_cpu%', style: const TextStyle(color: Colors.white70, fontSize: 11)),
-                  Text('النظام: ${widget.firmwarePath != null ? "مرفق (Custom FW)" : "FW 9.00 افتراضي"}', style: const TextStyle(color: Colors.grey, fontSize: 10)),
+                  Text('النظام المثبت: ${widget.activeFirmware.version}', style: const TextStyle(color: Colors.amberAccent, fontSize: 11)),
                 ],
               ),
             ),
           ),
 
-          // زر إغلاق المحاكي
+          // زر إغلاق اللعبة
           Positioned(
             top: 16,
             right: 16,
@@ -448,7 +580,7 @@ class _NativeEmulatorRunnerScreenState extends State<NativeEmulatorRunnerScreen>
             ),
           ),
 
-          // أزرار التحكم اللمسية (Virtual Controller)
+          // التحكم باللمس
           Positioned(
             bottom: 20,
             left: 20,
