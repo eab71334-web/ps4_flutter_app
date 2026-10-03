@@ -31,10 +31,13 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Reconstruct Project & Platforms
+      - name: Reconstruct Project & Config Android SDK
         run: |
           flutter create . --org com.ps4app.app --platforms android,ios
           flutter pub get
+          # تعديل مستويات التوافقية لأندرويد لتجاوز خطأ file_picker
+          sed -i 's/compileSdkVersion.*/compileSdkVersion 34/g' android/app/build.gradle || true
+          sed -i 's/targetSdkVersion.*/targetSdkVersion 34/g' android/app/build.gradle || true
 
       - name: Build Android APK
         run: flutter build apk --release
