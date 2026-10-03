@@ -24,9 +24,9 @@ jobs:
 
       - name: Build Unsigned iOS App
         run: |
-          flutter build ios --release --no-codesign
+          flutter build ios --simulator --no-codesign
           mkdir -p Payload
-          cp -r build/ios/iphoneos/Runner.app Payload/
+          cp -r build/ios/iphonesimulator/Runner.app Payload/
           zip -r ps4_hybrid_engine.ipa Payload
 
       - name: Upload iOS IPA Artifact
