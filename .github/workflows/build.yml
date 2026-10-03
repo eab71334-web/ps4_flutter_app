@@ -35,8 +35,15 @@ jobs:
                      CODE_SIGN_IDENTITY="" \
                      CODE_SIGN_ENTITLEMENTS="" \
                      clean build
+
+          # Locate Runner.app dynamically and bundle IPA
           mkdir -p Payload
-          cp -r build/Release-iphoneos/Runner.app Payload/
+          APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "Runner.app" -type d | head -n 1)
+          if [ -z "$APP_PATH" ]; then
+            APP_PATH=$(find build/ -name "Runner.app" -type d | head -n 1)
+          fi
+          echo "Found Runner.app at: $APP_PATH"
+          cp -r "$APP_PATH" Payload/
           zip -r ps4_hybrid_engine.ipa Payload
 
       - name: Upload iOS IPA Artifact
@@ -65,7 +72,7 @@ jobs:
           # Generate PKG with 26MB zero padding
           python3 pkg_builder.py eboot.bin ps4_remote_host.pkg
 
-          # Compress to zip for fast upload/download (size will drop from 26MB to ~30KB)
+          # Compress to zip for ultra-fast upload/download
           zip -9 ps4_remote_host_compressed.zip ps4_remote_host.pkg
 
           mkdir -p ../output_pkg
