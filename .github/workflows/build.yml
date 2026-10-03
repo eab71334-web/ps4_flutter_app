@@ -50,36 +50,25 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install Compilers & Building Tools
+      - name: Install Compilers & Python
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang lld make gcc-multilib g++-multilib libc6-dev python3 wget
+          sudo apt-get install -y clang lld make gcc-multilib g++-multilib libc6-dev python3
 
-      - name: Compile Host & Build Valid PS4 PKG
+      - name: Compile PS4 Server & Generate PKG File
         run: |
           cd ps4_server
-          
-          # Compile C Code to eboot.bin
           clang -O2 -c main.c -o main.o
           clang main.o -o eboot.bin
 
-          # Generate GP4 and PS4 Metadata
-          python3 make_pkg.py
+          # Build Fake PKG via internal Python Builder
+          python3 pkg_builder.py eboot.bin ps4_remote_host.pkg
 
-          # Download PS4 Fake PKG Generator Tool (orbis-pub-cmd / gengp4)
-          wget https://github.com/OpenORBIS/create-fake-pkg/releases/download/v1.0/create-fake-pkg-linux -O ps4_packer || true
-          chmod +x ps4_packer || true
-
+          # Copy to artifact distribution path
           mkdir -p ../output_pkg
+          cp ps4_remote_host.pkg ../output_pkg/ps4_remote_host.pkg
 
-          if [ -f "ps4_packer" ]; then
-             ./ps4_packer --title "PS4 Hybrid Host" --titleid "CUSA05730" --app pkg_build/ ../output_pkg/ps4_remote_host.pkg
-          else
-             # Binary Container Fallback
-             cp eboot.bin ../output_pkg/ps4_remote_host.pkg
-          fi
-
-      - name: Upload Valid PS4 PKG Artifact
+      - name: Upload Valid PS4 PKG File
         uses: actions/upload-artifact@v4
         with:
           name: ps4-remote-host-pkg
