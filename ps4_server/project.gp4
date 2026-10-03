@@ -1,15 +1,20 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?>
-<package volume="0" volume_ts="1">
-  <fmt_config type="ps4_app"/>
+<ps4_project version="1.0">
   <volume>
-    <volume_id>PS4_HYBRID_HOST</volume_id>
-    <volume_number>1</volume_number>
-    <volume_count>1</volume_count>
-    <package_id>CUSA05730</package_id>
+    <volume_type>pkg_ps4_app</volume_type>
+    <volume_id>PS4_VOLUME</volume_id>
+    <volume_ts>2026-10-03 00:00:00</volume_ts>
+    <package_version>01.00</package_version>
+    <package_sub_version>00</package_sub_version>
+    <application_param>
+      <title_id>CUSA05730</title_id>
+      <content_id>IV0000-CUSA05730_00-PS4HYBRIDAPP0000</content_id>
+      <title_name>PS4 Hybrid Controller Server</title_name>
+      <system_ver>0x05050000</system_ver>
+      <sdk_ver>0x05050000</sdk_ver>
+    </application_param>
   </volume>
-  <files img_type="activation">
-    <file target_path="sce_sys/param.sfo" source_path="sce_sys/param.sfo"/>
-    <file target_path="sce_sys/icon0.png" source_path="sce_sys/icon0.png"/>
-    <file target_path="eboot.bin" source_path="eboot.bin"/>
+  <files hint="System_Files">
+    <file orig_path="eboot.bin" target_path="sce_sys/eboot.bin" />
   </files>
-</package>
+</ps4_project>
