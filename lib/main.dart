@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 
-// --- FFI STRUCTS & TYPEDEFS (ربط كود C++ بـ Dart) ---
+// --- FFI STRUCTS & TYPEDEFS ---
 
 final class EmulatorStatsStruct extends Struct {
   @Float()
@@ -164,11 +164,10 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
   final List<GameModel> _games = [];
   final PS4NativeEngine _engine = PS4NativeEngine();
 
-  // قائمة إصدارات النظام المثبتة (الإصدار 9.00 مدمج وجاهز افتراضياً)
   final List<FirmwareModel> _installedFirmwares = [
     FirmwareModel(
       id: 'fw_900_default',
-      name: 'PS4 System Firmware 9.00 (GoldHEN Gold Edition)',
+      name: 'PS4 System Firmware 9.00 (GoldHEN Edition)',
       version: '9.00',
       isBuiltIn: true,
     ),
@@ -242,7 +241,7 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
 
         setState(() {
           _installedFirmwares.add(newFw);
-          _activeFirmwareId = newFw.id; // تفعيل النظام الجديد تلقائياً بعد تثبيته
+          _activeFirmwareId = newFw.id;
         });
 
         if (mounted) {
@@ -272,7 +271,7 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
                 children: [
                   Icon(Icons.developer_board, color: Colors.cyanAccent),
                   SizedBox(width: 10),
-                  Text('إدارة إصدارات نظام PS4 (Firmware)', style: TextStyle(fontSize: 16)),
+                  Text('إدارة إصدارات نظام PS4', style: TextStyle(fontSize: 16)),
                 ],
               ),
               content: SizedBox(
@@ -318,7 +317,6 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
                     ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.amber.shade800,
-                        minimumSize: const Size(double.infinity, 45),
                       ),
                       onPressed: () async {
                         Navigator.pop(context);
@@ -357,7 +355,6 @@ class _GameLibraryScreenState extends State<GameLibraryScreen> {
       ),
       body: Column(
         children: [
-          // شريط إظهار النظام النشط حالياً
           Container(
             color: const Color(0xFF131B2E),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -484,7 +481,6 @@ class _NativeEmulatorRunnerScreenState extends State<NativeEmulatorRunnerScreen>
     super.initState();
     _statsPointer = calloc<EmulatorStatsStruct>();
 
-    // إقلاع المحرك مع النظام المختار
     widget.engine.boot(widget.game.path, widget.activeFirmware.filePath);
 
     _statsTimer = Timer.periodic(const Duration(milliseconds: 200), (timer) {
@@ -546,7 +542,6 @@ class _NativeEmulatorRunnerScreenState extends State<NativeEmulatorRunnerScreen>
             ),
           ),
 
-          // لوحة معلومات الأداء والإصدار النشط
           Positioned(
             top: 16,
             left: 16,
@@ -570,7 +565,6 @@ class _NativeEmulatorRunnerScreenState extends State<NativeEmulatorRunnerScreen>
             ),
           ),
 
-          // زر إغلاق اللعبة
           Positioned(
             top: 16,
             right: 16,
@@ -580,7 +574,6 @@ class _NativeEmulatorRunnerScreenState extends State<NativeEmulatorRunnerScreen>
             ),
           ),
 
-          // التحكم باللمس
           Positioned(
             bottom: 20,
             left: 20,
