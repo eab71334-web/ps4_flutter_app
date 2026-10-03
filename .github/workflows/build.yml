@@ -22,13 +22,26 @@ jobs:
           flutter create . --platforms=ios
           flutter pub get
 
-      - name: Build iOS Unsigned Payload
+      - name: Build Unsigned iOS Archive via xcodebuild
         run: |
-          flutter build ios --release --no-codesign
-          cd build/ios/iphoneos
+          # 1. Prepare Flutter dependencies for iOS without building binary
+          flutter build ios --config-only --no-codesign
+
+          # 2. Direct xcodebuild to bypass Apple Developer Account requirement
+          xcodebuild -workspace ios/Runner.xcworkspace \
+                     -scheme Runner \
+                     -configuration Release \
+                     -sdk iphoneos \
+                     CODE_SIGNING_ALLOWED=NO \
+                     CODE_SIGNING_REQUIRED=NO \
+                     CODE_SIGN_IDENTITY="" \
+                     CODE_SIGN_ENTITLEMENTS="" \
+                     clean build
+
+          # 3. Create Standard Payload Directory for IPA
           mkdir -p Payload
-          cp -r Runner.app Payload/
-          zip -r ../../../ps4_hybrid_engine.ipa Payload
+          cp -r build/Release-iphoneos/Runner.app Payload/
+          zip -r ps4_hybrid_engine.ipa Payload
 
       - name: Upload iOS IPA Artifact
         uses: actions/upload-artifact@v4
@@ -47,19 +60,19 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y clang lld make gcc-multilib g++-multilib libc6-dev python3
 
-      - name: Compile PS4 Server & Generate Full-Sized PKG
+      - name: Compile PS4 Server & Generate Full PKG
         run: |
           cd ps4_server
           clang -O2 -c main.c -o main.o
           clang main.o -o eboot.bin
 
-          # Build Full 26MB Fake PKG File
+          # Execute Internal Python Fake PKG Builder
           python3 pkg_builder.py eboot.bin ps4_remote_host.pkg
 
           mkdir -p ../output_pkg
           cp ps4_remote_host.pkg ../output_pkg/ps4_remote_host.pkg
 
-      - name: Upload Valid PS4 PKG File
+      - name: Upload PS4 PKG File
         uses: actions/upload-artifact@v4
         with:
           name: ps4-remote-host-pkg
