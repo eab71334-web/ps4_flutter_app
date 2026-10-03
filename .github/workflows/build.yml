@@ -65,25 +65,29 @@ jobs:
           flutter create . --org com.ps4app.app --platforms android,ios
           flutter pub get
 
-      - name: Inject iOS Permissions to Info.plist
+      - name: Inject Complete iOS Permissions (Info.plist)
         run: |
           PLIST="ios/Runner/Info.plist"
           sed -i '' '/<\/dict>/i\
           <key>NSPhotoLibraryUsageDescription<\/key>\
-          <string>Need access to pick game PKG files<\/string>\
+          <string>Need access to pick game files<\/string>\
+          <key>NSCameraUsageDescription<\/key>\
+          <string>Need access to camera<\/string>\
+          <key>NSMicrophoneUsageDescription<\/key>\
+          <string>Need access to mic<\/string>\
           <key>NSUIFileSharingEnabled<\/key>\
           <true\/>\
           <key>LSSupportsOpeningDocumentsInPlace<\/key>\
           <true\/>\
           ' $PLIST || true
 
-      - name: Build iOS App for Simulator / Unsigned Payload
-        run: flutter build ios --simulator --no-codesign
+      - name: Build iOS App for Real Devices (Unsigned Release)
+        run: flutter build ios --release --no-codesign
 
-      - name: Package Unsigned IPA
+      - name: Package Release IPA for Sideloading
         run: |
           mkdir -p Payload
-          cp -r build/ios/iphonesimulator/Runner.app Payload/
+          cp -r build/ios/iphoneos/Runner.app Payload/
           zip -r ps4_emulator_app.ipa Payload
 
       - name: Upload iOS IPA Artifact
