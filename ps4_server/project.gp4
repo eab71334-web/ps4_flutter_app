@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<package volume="0" volume_ts="1">
+  <fmt_config type="ps4_app"/>
+  <volume>
+    <volume_id>PS4_HYBRID_HOST</volume_id>
+    <volume_number>1</volume_number>
+    <volume_count>1</volume_count>
+    <package_id>CUSA05730</package_id>
+  </volume>
+  <files img_type="activation">
+    <file target_path="sce_sys/param.sfo" source_path="sce_sys/param.sfo"/>
+    <file target_path="sce_sys/icon0.png" source_path="sce_sys/icon0.png"/>
+    <file target_path="eboot.bin" source_path="eboot.bin"/>
+  </files>
+</package>
