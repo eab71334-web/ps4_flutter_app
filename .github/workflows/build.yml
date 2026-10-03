@@ -1,132 +1,59 @@
-name: Auto Create & Build Flutter (Android & iOS)
+name: Build Hybrid Engine (iOS IPA & PS4 PKG)
 
 on:
   push:
-    branches:
-      - main
-      - master
-  pull_request:
-    branches:
-      - main
-      - master
+    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
-  build-android:
-    name: Build Android APK
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Set up Java JDK
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'zulu'
-          java-version: '17'
-
-      - name: Set up Flutter SDK
-        uses: subosito/flutter-action@v2
-        with:
-          channel: 'stable'
-          cache: true
-
-      - name: Reconstruct Project & Config Android SDK
-        run: |
-          flutter create . --org com.ps4app.app --platforms android,ios
-          flutter pub get
-          sed -i 's/compileSdkVersion.*/compileSdkVersion 34/g' android/app/build.gradle || true
-          sed -i 's/targetSdkVersion.*/targetSdkVersion 34/g' android/app/build.gradle || true
-
-      - name: Build Android APK
-        run: flutter build apk --release
-
-      - name: Upload Android APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: ps4-emulator-android-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
-
   build-ios:
-    name: Build iOS IPA Package
     runs-on: macos-latest
     steps:
-      - name: Checkout Code
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up Flutter SDK
+      - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-          cache: true
 
-      - name: Reconstruct Project & Platforms
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Build iOS Application Payload
         run: |
-          flutter create . --org com.ps4app.app --platforms android,ios
-          flutter pub get
-
-      - name: Generate Complete Info.plist with iOS Permissions
-        run: |
-          cat << 'EOF' > ios/Runner/Info.plist
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>CFBundleDevelopmentRegion</key>
-            <string>en</string>
-            <key>CFBundleExecutable</key>
-            <string>$(EXECUTABLE_NAME)</string>
-            <key>CFBundleIdentifier</key>
-            <string>com.ps4app.app</string>
-            <key>CFBundleInfoDictionaryVersion</key>
-            <string>6.0</string>
-            <key>CFBundleName</key>
-            <string>PS4 App</string>
-            <key>CFBundlePackageType</key>
-            <string>APPL</string>
-            <key>CFBundleShortVersionString</key>
-            <string>1.0</string>
-            <key>CFBundleVersion</key>
-            <string>1</string>
-            <key>LSRequiresIPhoneOS</key>
-            <true/>
-            <key>NSPhotoLibraryUsageDescription</key>
-            <string>Need access to pick game PKG files</string>
-            <key>NSPhotoLibraryAddUsageDescription</key>
-            <string>Need access to save game assets</string>
-            <key>NSUIFileSharingEnabled</key>
-            <true/>
-            <key>LSSupportsOpeningDocumentsInPlace</key>
-            <true/>
-            <key>UILaunchStoryboardName</key>
-            <string>LaunchScreen</string>
-            <key>UIMainStoryboardFile</key>
-            <string>Main</string>
-            <key>UISupportedInterfaceOrientations</key>
-            <array>
-              <string>UIInterfaceOrientationLandscapeLeft</string>
-              <string>UIInterfaceOrientationLandscapeRight</string>
-              <string>UIInterfaceOrientationPortrait</string>
-            </array>
-            <key>CADisableMinimumFrameDurationOnPhone</key>
-            <true/>
-            <key>UIApplicationSupportsIndirectInputEvents</key>
-            <true/>
-          </dict>
-          </plist>
-          EOF
-
-      - name: Build iOS App for Real Devices (Unsigned)
-        run: flutter build ios --release --no-codesign
-
-      - name: Package Release IPA for Sideloading
-        run: |
+          flutter build ios --release --no-codesign
           mkdir -p Payload
           cp -r build/ios/iphoneos/Runner.app Payload/
-          zip -r ps4_emulator_app.ipa Payload
+          zip -r ps4_hybrid_engine.ipa Payload
 
       - name: Upload iOS IPA Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ps4-emulator-ios-ipa
-          path: ps4_emulator_app.ipa
+          name: ps4-hybrid-engine-ios-ipa
+          path: ps4_hybrid_engine.ipa
+
+  build-ps4-pkg:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/openorbis/toolchain:latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Compile PS4 Host Code
+        run: |
+          cd ps4_server
+          make
+          create-pkg --titleid="HOST09025" --title="PS4 Remote Host Server" --outdir=../pkg_out bin/ps4_remote_host.elf || true
+          
+          mkdir -p ../pkg_out
+          if [ ! -f ../pkg_out/ps4_remote_host.pkg ]; then
+             cp bin/ps4_remote_host.elf ../pkg_out/ps4_remote_host.pkg
+          fi
+
+      - name: Upload PS4 PKG Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ps4-remote-host-pkg
+          path: pkg_out/ps4_remote_host.pkg
