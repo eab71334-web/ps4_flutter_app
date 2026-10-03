@@ -1,81 +1,67 @@
-name: Build Hybrid Engine (iOS IPA & PS4 Real PKG)
+name: Build PS4 PKG and iOS IPA
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
-  build-ios:
-    runs-on: macos-latest
+  build-ps4-pkg:
+    runs-on: ubuntu-latest
+
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '6.0.x'
+
+      - name: Clone and Build LibOrbisPkg (PkgTool)
+        run: |
+          git clone https://github.com/maxton/LibOrbisPkg.git
+          cd LibOrbisPkg
+          dotnet build PkgTool.Core/PkgTool.Core.csproj -c Release
+          echo "PKGTOOL_DLL=$(pwd)/PkgTool.Core/bin/Release/net6.0/PkgTool.Core.dll" >> $GITHUB_ENV
+
+      - name: Build FPKG using PkgTool
+        run: |
+          cd ps4_server
+          dotnet "$PKGTOOL_DLL" pkg create project.gp4 . ps4_remote_host.pkg
+
+      - name: Upload PS4 PKG Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ps4-pkg
+          path: ps4_server/ps4_remote_host.pkg
+
+  build-ios-ipa:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          architecture: x64
 
-      - name: Add Dependencies & Configure iOS
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Build iOS Payload (No Codesign for TrollStore / SideStore)
         run: |
-          flutter pub add http
-          flutter create --platforms=ios --org com.ps4hybrid .
-          flutter pub get
-
-      - name: Build Unsigned iOS Archive via xcodebuild
-        run: |
-          flutter build ios --config-only --no-codesign
-          xcodebuild -workspace ios/Runner.xcworkspace \
-                     -scheme Runner \
-                     -configuration Release \
-                     -sdk iphoneos \
-                     CODE_SIGNING_ALLOWED=NO \
-                     CODE_SIGNING_REQUIRED=NO \
-                     CODE_SIGN_IDENTITY="" \
-                     CODE_SIGN_ENTITLEMENTS="" \
-                     clean build
-
-          mkdir -p Payload
-          APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "Runner.app" -type d | head -n 1)
-          if [ -z "$APP_PATH" ]; then
-            APP_PATH=$(find build/ -name "Runner.app" -type d | head -n 1)
-          fi
-          echo "Found Runner.app at: $APP_PATH"
-          cp -r "$APP_PATH" Payload/
+          flutter build ios --release --no-codesign
+          cd build/ios/iphoneos
+          mkdir Payload
+          mv Runner.app Payload/
           zip -r ps4_hybrid_engine.ipa Payload
 
       - name: Upload iOS IPA Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
-          name: ps4-hybrid-engine-ios-ipa
-          path: ps4_hybrid_engine.ipa
-
-  build-ps4-pkg:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Install Compilers & Zip Tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y clang lld make gcc-multilib g++-multilib libc6-dev python3 zip
-
-      - name: Compile PS4 Server & Create Compressed Package
-        run: |
-          cd ps4_server
-          clang -O2 -c main.c -o main.o
-          clang main.o -o eboot.bin
-
-          python3 pkg_builder.py eboot.bin ps4_remote_host.pkg
-          zip -9 ps4_remote_host_compressed.zip ps4_remote_host.pkg
-
-          mkdir -p ../output_pkg
-          cp ps4_remote_host_compressed.zip ../output_pkg/
-
-      - name: Upload Compressed PS4 PKG Archive
-        uses: actions/upload-artifact@v4
-        with:
-          name: ps4-remote-host-pkg-zip
-          path: output_pkg/ps4_remote_host_compressed.zip
+          name: ios-ipa
+          path: build/ios/iphoneos/ps4_hybrid_engine.ipa
