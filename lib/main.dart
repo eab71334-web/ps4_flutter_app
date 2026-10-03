@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'http/http.dart' as http;
+import 'package:http/http.dart' as http;
 
 void main() {
   runApp(const PS4HybridApp());
