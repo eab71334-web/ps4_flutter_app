@@ -35,7 +35,6 @@ jobs:
         run: |
           flutter create . --org com.ps4app.app --platforms android,ios
           flutter pub get
-          # تعديل مستويات التوافقية لأندرويد لتجاوز خطأ file_picker
           sed -i 's/compileSdkVersion.*/compileSdkVersion 34/g' android/app/build.gradle || true
           sed -i 's/targetSdkVersion.*/targetSdkVersion 34/g' android/app/build.gradle || true
 
@@ -66,13 +65,13 @@ jobs:
           flutter create . --org com.ps4app.app --platforms android,ios
           flutter pub get
 
-      - name: Build iOS App (No Codesign)
-        run: flutter build ios --release --no-codesign
+      - name: Build iOS App for Simulator / Unsigned Payload
+        run: flutter build ios --simulator --no-codesign
 
-      - name: Create IPA Package
+      - name: Package Unsigned IPA
         run: |
           mkdir -p Payload
-          mv build/ios/iphoneos/Runner.app Payload/
+          cp -r build/ios/iphonesimulator/Runner.app Payload/
           zip -r ps4_emulator_app.ipa Payload
 
       - name: Upload iOS IPA Artifact
