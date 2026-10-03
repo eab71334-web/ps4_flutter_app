@@ -40,11 +40,11 @@ jobs:
       - name: Upload Android APK
         uses: actions/upload-artifact@v4
         with:
-          name: release-apk
+          name: ps4-emulator-android-apk
           path: build/app/outputs/flutter-apk/app-release.apk
 
   build-ios:
-    name: Build iOS App Payload
+    name: Build iOS IPA Package
     runs-on: macos-latest
     steps:
       - name: Checkout Code
@@ -59,16 +59,17 @@ jobs:
       - name: Install Dependencies
         run: flutter pub get
 
-      - name: Build iOS App (Simulator / No Codesign)
-        run: flutter build ios --simulator --no-codesign
+      - name: Build iOS App (No Codesign)
+        run: flutter build ios --release --no-codesign
 
-      - name: Compress iOS App Payload
+      - name: Create IPA Package
         run: |
-          cd build/ios/iphonesimulator
-          zip -r Runner.zip Runner.app
+          mkdir -p Payload
+          mv build/ios/iphoneos/Runner.app Payload/
+          zip -r ps4_emulator_app.ipa Payload
 
-      - name: Upload iOS App Artifact
+      - name: Upload iOS IPA Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: runner-ios-app
-          path: build/ios/iphonesimulator/Runner.zip
+          name: ps4-emulator-ios-ipa
+          path: ps4_emulator_app.ipa
