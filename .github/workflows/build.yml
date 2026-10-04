@@ -24,13 +24,13 @@ jobs:
         run: |
           git clone https://github.com/maxton/LibOrbisPkg.git
           cd LibOrbisPkg
-          dotnet build PkgTool.Core/PkgTool.Core.csproj -c Release
+          dotnet build PkgTool.Core/PkgTool.Core.csproj -c Release -o ./out
 
       - name: Build FPKG using PkgTool
         run: |
-          PKG_TOOL_PATH="$GITHUB_WORKSPACE/LibOrbisPkg/PkgTool.Core/bin/Release/net6.0/PkgTool.Core.dll"
+          chmod +x LibOrbisPkg/out/PkgTool.Core
           cd ps4_server
-          dotnet "$PKG_TOOL_PATH" pkg create project.gp4 . ps4_remote_host.pkg
+          ../LibOrbisPkg/out/PkgTool.Core pkg create project.gp4 . ps4_remote_host.pkg
 
       - name: Upload PS4 PKG Artifact
         uses: actions/upload-artifact@v4
