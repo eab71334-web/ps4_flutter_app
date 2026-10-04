@@ -24,9 +24,11 @@ jobs:
         run: |
           git clone https://github.com/maxton/LibOrbisPkg.git
 
-      - name: Publish PkgTool
+      - name: Force .NET 3.1 Environment & Build PkgTool
         run: |
-          dotnet publish LibOrbisPkg/PkgTool.Core/PkgTool.Core.csproj -c Release -f netcoreapp3.1 -r win-x64 --self-contained true -o ./pkgtool_bin
+          echo '{"sdk":{"version":"3.1.426","rollForward":"latestFeature"}}' > global.json
+          dotnet restore LibOrbisPkg/PkgTool.Core/PkgTool.Core.csproj
+          dotnet publish LibOrbisPkg/PkgTool.Core/PkgTool.Core.csproj -c Release -r win-x64 --self-contained true -o ./pkgtool_bin
 
       - name: Build FPKG using PkgTool
         run: |
