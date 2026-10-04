@@ -15,10 +15,10 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup OpenOrbis Toolchain Requirements
+      - name: Install Compilers & Setup OpenOrbis Toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y make gcc g++ libssl-dev
+          sudo apt-get install -y make gcc g++ g++-multilib gcc-multilib clang libssl-dev
           git clone --recursive https://github.com/OpenOrbis/OpenOrbis-PS4-Toolchain.git /tmp/OO_PS4_TOOLCHAIN
           echo "OO_PS4_TOOLCHAIN=/tmp/OO_PS4_TOOLCHAIN" >> $GITHUB_ENV
 
