@@ -20,20 +20,18 @@ jobs:
         with:
           dotnet-version: '3.1.x'
 
-      - name: Setup .NET 6.0 SDK
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '6.0.x'
-
       - name: Clone LibOrbisPkg
         run: |
           git clone https://github.com/maxton/LibOrbisPkg.git
 
+      - name: Publish PkgTool
+        run: |
+          dotnet publish LibOrbisPkg/PkgTool.Core/PkgTool.Core.csproj -c Release -f netcoreapp3.1 -r win-x64 --self-contained true -o ./pkgtool_bin
+
       - name: Build FPKG using PkgTool
         run: |
           cd ps4_server
-          dotnet run --framework netcoreapp3.1 --project ..\LibOrbisPkg\PkgTool.Core\PkgTool.Core.csproj -c Release -- pkg create project.gp4 . output.pkg
-          Get-ChildItem -Recurse -Filter *.pkg
+          ..\pkgtool_bin\PkgTool.Core.exe pkg create project.gp4 . output.pkg
 
       - name: Upload PS4 PKG Artifact
         uses: actions/upload-artifact@v4
