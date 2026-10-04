@@ -15,12 +15,17 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install Compilers & Setup OpenOrbis Toolchain
+      - name: Install Compilers & Toolchain Prerequisites
         run: |
           sudo apt-get update
-          sudo apt-get install -y make gcc g++ g++-multilib gcc-multilib clang libssl-dev
+          sudo apt-get install -y make gcc g++ g++-multilib gcc-multilib clang wget
           git clone --recursive https://github.com/OpenOrbis/OpenOrbis-PS4-Toolchain.git /tmp/OO_PS4_TOOLCHAIN
           echo "OO_PS4_TOOLCHAIN=/tmp/OO_PS4_TOOLCHAIN" >> $GITHUB_ENV
+
+      - name: Install LibSSL 1.1 for .NET Core 3.1 Compatibility
+        run: |
+          wget http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2_amd64.deb
+          sudo dpkg -i libssl1.1_1.1.1f-1ubuntu2_amd64.deb
 
       - name: Compile PS4 Binary (eboot.bin)
         run: |
