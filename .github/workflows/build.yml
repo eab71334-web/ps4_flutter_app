@@ -47,12 +47,6 @@ jobs:
           dotnet restore LibOrbisPkg/PkgTool.Core/PkgTool.Core.csproj
           dotnet publish LibOrbisPkg/PkgTool.Core/PkgTool.Core.csproj -c Release --self-contained true -o ./pkgtool_bin
 
-      - name: Prepare sce_sys Directory Structure
-        run: |
-          mkdir -p ps4_server/sce_sys
-          cp ps4_server/param.sfo ps4_server/sce_sys/param.sfo
-          cp ps4_server/icon0.png ps4_server/sce_sys/icon0.png
-
       - name: Build Real PKG using PkgTool
         run: |
           ./pkgtool_bin/PkgTool.Core pkg_build ps4_server/project.gp4 ps4_server
