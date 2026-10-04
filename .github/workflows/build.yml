@@ -20,11 +20,11 @@ jobs:
         with:
           dotnet-version: '6.0.x'
 
-      - name: Clone and Build LibOrbisPkg
+      - name: Clone and Build LibOrbisPkg (Self-Contained)
         run: |
           git clone https://github.com/maxton/LibOrbisPkg.git
           cd LibOrbisPkg
-          dotnet build PkgTool.Core/PkgTool.Core.csproj -c Release -o ./out
+          dotnet publish PkgTool.Core/PkgTool.Core.csproj -c Release -r linux-x64 --self-contained true -o ./out
 
       - name: Build FPKG using PkgTool
         run: |
