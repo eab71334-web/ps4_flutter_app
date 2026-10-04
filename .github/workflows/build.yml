@@ -3,10 +3,9 @@ name: Build PS4 PKG and iOS IPA
 on:
   push:
     branches: [ main ]
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
-
-permissions:
-  contents: write
 
 jobs:
   build-ps4-pkg:
@@ -51,8 +50,11 @@ jobs:
         with:
           channel: 'stable'
 
-      - name: Install Dependencies
-        run: flutter pub get
+      - name: Enable and Configure iOS Platform
+        run: |
+          flutter config --enable-ios
+          flutter create --platforms=ios .
+          flutter pub get
 
       - name: Build iOS Payload
         run: |
@@ -67,30 +69,3 @@ jobs:
         with:
           name: ios-ipa
           path: build/ios/iphoneos/ps4_hybrid_engine.ipa
-
-  create-release:
-    needs: [build-ps4-pkg, build-ios-ipa]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download PS4 PKG
-        uses: actions/download-artifact@v4
-        with:
-          name: ps4-pkg
-          path: ./release-files
-
-      - name: Download iOS IPA
-        uses: actions/download-artifact@v4
-        with:
-          name: ios-ipa
-          path: ./release-files
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: v1.0.${{ github.run_number }}
-          name: Release Build #${{ github.run_number }}
-          files: |
-            ./release-files/ps4_remote_host.pkg
-            ./release-files/ps4_hybrid_engine.ipa
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
