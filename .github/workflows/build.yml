@@ -30,34 +30,10 @@ jobs:
           dotnet restore LibOrbisPkg/PkgTool.Core/PkgTool.Core.csproj
           dotnet publish LibOrbisPkg/PkgTool.Core/PkgTool.Core.csproj -c Release -r win-x64 --self-contained true -o ./pkgtool_bin
 
-      - name: Generate Clean GP4 Project
-        shell: powershell
-        run: |
-          $gp4Content = @"
-          <?xml version="1.0" encoding="utf-8"?>
-          <ps4_project version="1">
-            <volume>
-              <volume_type>pkg_ps4_app</volume_type>
-              <volume_id>PS4VOLUME</volume_id>
-              <volume_ts>2026-01-01 00:00:00</volume_ts>
-              <package_id>CUSA00000_00</package_id>
-              <content_id>IV0000-CUSA00000_00-0000000000000000</content_id>
-              <passcode>00000000000000000000000000000000</passcode>
-              <application_type>app_executable</application_type>
-            </volume>
-            <files image_path="">
-              <file orig_path="sce_sys/param.sfo" target_path="sce_sys/param.sfo" />
-              <file orig_path="sce_sys/icon0.png" target_path="sce_sys/icon0.png" />
-              <file orig_path="eboot.bin" target_path="eboot.bin" />
-            </files>
-          </ps4_project>
-          "@
-          [System.IO.File]::WriteAllText("ps4_server\project.gp4", $gp4Content, (New-Object System.Text.UTF8Encoding($false)))
-
-      - name: Build FPKG using PkgTool
+      - name: Build FPKG directly using PkgTool
         shell: cmd
         run: |
-          pkgtool_bin\PkgTool.Core.exe pkg_build ps4_server\project.gp4 ps4_server
+          pkgtool_bin\PkgTool.Core.exe pkg_create ps4_server ps4_server/output.pkg
 
       - name: Upload PS4 PKG Artifact
         uses: actions/upload-artifact@v4
