@@ -3,8 +3,6 @@ name: Build PS4 PKG and iOS IPA
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
   workflow_dispatch:
 
 jobs:
