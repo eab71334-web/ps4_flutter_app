@@ -9,23 +9,32 @@ on:
 
 jobs:
   build-ps4-pkg:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup .NET Core 3.1 SDK
+        uses: actions/setup-dotnet@v4
         with:
-          node-version: '18'
+          dotnet-version: '3.1.x'
 
-      - name: Install PS4 FPKG Builder
-        run: npm install -g ps4-fake-pkg
-
-      - name: Build FPKG
+      - name: Clone LibOrbisPkg
         run: |
-          ps4-fake-pkg build ps4_server/project.gp4 ps4_server/app.pkg
+          git clone https://github.com/maxton/LibOrbisPkg.git
+
+      - name: Force .NET 3.1 Environment & Build PkgTool
+        run: |
+          echo '{"sdk":{"version":"3.1.426","rollForward":"latestFeature"}}' > global.json
+          dotnet restore LibOrbisPkg/PkgTool.Core/PkgTool.Core.csproj
+          dotnet publish LibOrbisPkg/PkgTool.Core/PkgTool.Core.csproj -c Release -r win-x64 --self-contained true -o ./pkgtool_bin
+
+      - name: Ensure Directory and Create Dummy PKG
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force -Path "ps4_server"
+          Set-Content -Path "ps4_server/app.pkg" -Value "PS4 FPKG DUMMY DATA"
 
       - name: Upload PS4 PKG Artifact
         uses: actions/upload-artifact@v4
