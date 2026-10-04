@@ -31,16 +31,12 @@ jobs:
         run: |
           cd ps4_server
           mkdir -p sce_sys
-          # إنشاء ملف PARAM.SFO أساسي ومطلوب لتشغيل اللعبة/التطبيق على PS4
           echo "TitleID: CUSA00001" > sce_sys/param.sfo
-          
-        # بدلاً من استخدام PkgTool المعقدة التي تفشل مع ملفات XML المصنوعة يدوياً، 
-        # سنقوم بضغط ملفات التطبيق بصيغة TAR أو استخدام أداة حزم بديلة، أو ضغطها وجعلها جاهزة للتحميل المباشر
-        - name: Package PS4 App Files
+
+      - name: Package PS4 App Files
         run: |
           cd ps4_server
           tar -cvf app_payload.tar eboot.bin sce_sys/
-          # تحويل الناتج إلى ملف جاهز للاستخدام والتوزيع
           mv app_payload.tar ../app_payload.tar
 
       - name: Upload PS4 Build Artifact
