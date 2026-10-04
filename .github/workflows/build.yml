@@ -15,7 +15,12 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup .NET SDK
+      - name: Setup .NET Core 3.1 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '3.1.x'
+
+      - name: Setup .NET 6.0 SDK
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '6.0.x'
@@ -27,7 +32,7 @@ jobs:
       - name: Build FPKG using PkgTool
         run: |
           cd ps4_server
-          dotnet run --project ..\LibOrbisPkg\PkgTool.Core\PkgTool.Core.csproj -c Release -- pkg create project.gp4 . output.pkg
+          dotnet run --framework netcoreapp3.1 --project ..\LibOrbisPkg\PkgTool.Core\PkgTool.Core.csproj -c Release -- pkg create project.gp4 . output.pkg
           Get-ChildItem -Recurse -Filter *.pkg
 
       - name: Upload PS4 PKG Artifact
