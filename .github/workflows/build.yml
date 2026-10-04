@@ -9,31 +9,22 @@ on:
 
 jobs:
   build-ps4-pkg:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup .NET Core 3.1 SDK
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '3.1.x'
-
-      - name: Clone LibOrbisPkg
+      - name: Install OpenOrbis Toolchain
         run: |
-          git clone https://github.com/maxton/LibOrbisPkg.git
+          sudo apt-get update
+          sudo apt-get install -y make gcc g++ libssl-dev
+          git clone --recursive https://github.com/OpenOrbis/OpenOrbis-PS4-Toolchain.git /tmp/OO_PS4_TOOLCHAIN
+          echo "OO_PS4_TOOLCHAIN=/tmp/OO_PS4_TOOLCHAIN" >> $GITHUB_ENV
 
-      - name: Force .NET 3.1 Environment & Build PkgTool
+      - name: Build FPKG using OpenOrbis Create-PKG
         run: |
-          echo '{"sdk":{"version":"3.1.426","rollForward":"latestFeature"}}' > global.json
-          dotnet restore LibOrbisPkg/PkgTool.Core/PkgTool.Core.csproj
-          dotnet publish LibOrbisPkg/PkgTool.Core/PkgTool.Core.csproj -c Release -r win-x64 --self-contained true -o ./pkgtool_bin
-
-      - name: Build FPKG directly using PkgTool
-        shell: cmd
-        run: |
-          pkgtool_bin\PkgTool.Core.exe pkg_create ps4_server ps4_server/output.pkg
+          python3 /tmp/OO_PS4_TOOLCHAIN/scripts/create_pkg.py --script ps4_server/project.gp4 --output ps4_server/app.pkg
 
       - name: Upload PS4 PKG Artifact
         uses: actions/upload-artifact@v4
