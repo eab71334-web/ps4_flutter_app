@@ -23,7 +23,7 @@ jobs:
       - name: Clone and Publish LibOrbisPkg
         run: |
           git clone https://github.com/maxton/LibOrbisPkg.git
-          dotnet publish LibOrbisPkg/PkgTool.Core/PkgTool.Core.csproj -c Release -o ./pkgtool_out
+          dotnet publish LibOrbisPkg/PkgTool.Core/PkgTool.Core.csproj -c Release -r win-x64 --self-contained true -o ./pkgtool_out
 
       - name: Build FPKG using PkgTool
         run: |
