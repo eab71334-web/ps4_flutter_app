@@ -20,16 +20,15 @@ jobs:
         with:
           dotnet-version: '6.0.x'
 
-      - name: Clone and Build LibOrbisPkg
+      - name: Clone and Publish LibOrbisPkg
         run: |
           git clone https://github.com/maxton/LibOrbisPkg.git
-          cd LibOrbisPkg
-          dotnet build PkgTool.Core/PkgTool.Core.csproj -c Release
+          dotnet publish LibOrbisPkg/PkgTool.Core/PkgTool.Core.csproj -c Release -o ./pkgtool_out
 
       - name: Build FPKG using PkgTool
         run: |
           cd ps4_server
-          ..\LibOrbisPkg\PkgTool.Core\bin\Release\net6.0\PkgTool.Core.exe pkg create project.gp4 . output.pkg
+          ..\pkgtool_out\PkgTool.Core.exe pkg create project.gp4 . output.pkg
 
       - name: Upload PS4 PKG Artifact
         uses: actions/upload-artifact@v4
