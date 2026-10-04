@@ -22,55 +22,22 @@ jobs:
           git clone --recursive https://github.com/OpenOrbis/OpenOrbis-PS4-Toolchain.git /tmp/OO_PS4_TOOLCHAIN
           echo "OO_PS4_TOOLCHAIN=/tmp/OO_PS4_TOOLCHAIN" >> $GITHUB_ENV
 
-      - name: Install LibSSL 1.1 for .NET Core 3.1 Compatibility
-        run: |
-          wget http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2_amd64.deb
-          sudo dpkg -i libssl1.1_1.1.1f-1ubuntu2_amd64.deb
-
       - name: Compile PS4 Binary (eboot.bin)
         run: |
           cd ps4_server
           make
 
-      - name: Setup .NET Core 3.1 SDK
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '3.1.x'
-
-      - name: Clone LibOrbisPkg
+      - name: Build PKG using OpenOrbis Toolchain
         run: |
-          git clone https://github.com/maxton/LibOrbisPkg.git
-
-      - name: Build PkgTool
-        run: |
-          dotnet restore LibOrbisPkg/PkgTool.Core/PkgTool.Core.csproj
-          dotnet publish LibOrbisPkg/PkgTool.Core/PkgTool.Core.csproj -c Release -r linux-x64 --self-contained true -o ./pkgtool_bin
-
-      - name: Generate Valid Project GP4
-        run: |
-          cat << 'EOF' > ps4_server/project.gp4
-          <?xml version="1.0" encoding="utf-8"?>
-          <ps4_project version="1.0">
-            <volume>
-              <volume_type>pkg_ps4_app</volume_type>
-              <volume_id>PS4VOLUME</volume_id>
-              <volume_ts>2023-01-01 00:00:00</volume_ts>
-              <package_version>01.00</package_version>
-              <package_sub_version>00</package_sub_version>
-              <app_path></app_path>
-            </volume>
-            <files image_path="">
-              <file orig_path="eboot.bin" target_path="eboot.bin" />
-              <file orig_path="sce_sys/param.sfo" target_path="sce_sys/param.sfo" />
-              <file orig_path="sce_sys/icon0.png" target_path="sce_sys/icon0.png" />
-            </files>
-          </ps4_project>
-          EOF
-          dos2unix ps4_server/project.gp4
-
-      - name: Build Real PKG using PkgTool
-        run: |
-          ./pkgtool_bin/PkgTool.Core pkg_build ps4_server/project.gp4 ps4_server
+          cd ps4_server
+          if [ -f "$OO_PS4_TOOLCHAIN/scripts/create-pkg.sh" ]; then
+            bash $OO_PS4_TOOLCHAIN/scripts/create-pkg.sh .
+          elif [ -f "$OO_PS4_TOOLCHAIN/bin/linux/orbis-pub-cmd" ]; then
+            $OO_PS4_TOOLCHAIN/bin/linux/orbis-pub-cmd img_create project.gp4 output.pkg
+          else
+            echo "Searching for package creation tools..."
+            find $OO_PS4_TOOLCHAIN -name "*pkg*"
+          fi
 
       - name: Upload PS4 PKG Artifact
         uses: actions/upload-artifact@v4
