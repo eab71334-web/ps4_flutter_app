@@ -15,16 +15,17 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install OpenOrbis Toolchain
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y make gcc g++ libssl-dev
-          git clone --recursive https://github.com/OpenOrbis/OpenOrbis-PS4-Toolchain.git /tmp/OO_PS4_TOOLCHAIN
-          echo "OO_PS4_TOOLCHAIN=/tmp/OO_PS4_TOOLCHAIN" >> $GITHUB_ENV
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
 
-      - name: Build FPKG using OpenOrbis Create-PKG
+      - name: Install PS4 FPKG Builder
+        run: npm install -g ps4-fake-pkg
+
+      - name: Build FPKG
         run: |
-          python3 /tmp/OO_PS4_TOOLCHAIN/scripts/create_pkg.py --script ps4_server/project.gp4 --output ps4_server/app.pkg
+          ps4-fake-pkg build ps4_server/project.gp4 ps4_server/app.pkg
 
       - name: Upload PS4 PKG Artifact
         uses: actions/upload-artifact@v4
