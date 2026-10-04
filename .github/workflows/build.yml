@@ -9,16 +9,11 @@ on:
 
 jobs:
   build-ps4-pkg:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
-
-      - name: Install System Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgdiplus
 
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v4
@@ -29,19 +24,18 @@ jobs:
         run: |
           git clone https://github.com/maxton/LibOrbisPkg.git
           cd LibOrbisPkg
-          dotnet publish PkgTool.Core/PkgTool.Core.csproj -c Release -r linux-x64 --self-contained true -o ./out
+          dotnet build PkgTool.Core/PkgTool.Core.csproj -c Release
 
       - name: Build FPKG using PkgTool
         run: |
-          chmod +x LibOrbisPkg/out/PkgTool.Core
           cd ps4_server
-          ../LibOrbisPkg/out/PkgTool.Core pkg create project.gp4 . ps4_remote_host.pkg
+          ..\LibOrbisPkg\PkgTool.Core\bin\Release\net6.0\PkgTool.Core.exe pkg create project.gp4 . output.pkg
 
       - name: Upload PS4 PKG Artifact
         uses: actions/upload-artifact@v4
         with:
           name: ps4-pkg
-          path: "**/*.pkg"
+          path: ps4_server/*.pkg
           if-no-files-found: error
 
   build-ios-ipa:
