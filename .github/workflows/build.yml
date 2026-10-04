@@ -20,21 +20,21 @@ jobs:
         with:
           dotnet-version: '6.0.x'
 
-      - name: Clone and Publish LibOrbisPkg
+      - name: Clone LibOrbisPkg
         run: |
           git clone https://github.com/maxton/LibOrbisPkg.git
-          dotnet publish LibOrbisPkg/PkgTool.Core/PkgTool.Core.csproj -c Release -r win-x64 --self-contained true -o ./pkgtool_out
 
       - name: Build FPKG using PkgTool
         run: |
           cd ps4_server
-          ..\pkgtool_out\PkgTool.Core.exe pkg create project.gp4 . output.pkg
+          dotnet run --project ..\LibOrbisPkg\PkgTool.Core\PkgTool.Core.csproj -c Release -- pkg create project.gp4 . output.pkg
+          Get-ChildItem -Recurse -Filter *.pkg
 
       - name: Upload PS4 PKG Artifact
         uses: actions/upload-artifact@v4
         with:
           name: ps4-pkg
-          path: ps4_server/*.pkg
+          path: "**/*.pkg"
           if-no-files-found: error
 
   build-ios-ipa:
