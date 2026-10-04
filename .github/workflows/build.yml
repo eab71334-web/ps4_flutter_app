@@ -46,8 +46,26 @@ jobs:
           dotnet restore LibOrbisPkg/PkgTool.Core/PkgTool.Core.csproj
           dotnet publish LibOrbisPkg/PkgTool.Core/PkgTool.Core.csproj -c Release -r linux-x64 --self-contained true -o ./pkgtool_bin
 
-      - name: Fix Project GP4 Encoding & Line Endings
+      - name: Generate Valid Project GP4
         run: |
+          cat << 'EOF' > ps4_server/project.gp4
+          <?xml version="1.0" encoding="utf-8"?>
+          <ps4_project version="1.0">
+            <volume>
+              <volume_type>pkg_ps4_app</volume_type>
+              <volume_id>PS4VOLUME</volume_id>
+              <volume_ts>2023-01-01 00:00:00</volume_ts>
+              <package_version>01.00</package_version>
+              <package_sub_version>00</package_sub_version>
+              <app_path></app_path>
+            </volume>
+            <files image_path="">
+              <file orig_path="eboot.bin" target_path="eboot.bin" />
+              <file orig_path="sce_sys/param.sfo" target_path="sce_sys/param.sfo" />
+              <file orig_path="sce_sys/icon0.png" target_path="sce_sys/icon0.png" />
+            </files>
+          </ps4_project>
+          EOF
           dos2unix ps4_server/project.gp4
 
       - name: Build Real PKG using PkgTool
