@@ -2,9 +2,9 @@ name: Build PS4 PKG and iOS IPA
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, master ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
@@ -31,15 +31,15 @@ jobs:
           dotnet publish LibOrbisPkg/PkgTool.Core/PkgTool.Core.csproj -c Release -r win-x64 --self-contained true -o ./pkgtool_bin
 
       - name: Build FPKG using PkgTool
+        shell: cmd
         run: |
-          cd ps4_server
-          ..\pkgtool_bin\PkgTool.Core.exe pkg create project.gp4 . output.pkg
+          pkgtool_bin\PkgTool.Core.exe pkg_build ps4_server\project.gp4 ps4_server
 
       - name: Upload PS4 PKG Artifact
         uses: actions/upload-artifact@v4
         with:
           name: ps4-pkg
-          path: "**/*.pkg"
+          path: ps4_server/*.pkg
           if-no-files-found: error
 
   build-ios-ipa:
