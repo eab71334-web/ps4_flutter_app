@@ -35,14 +35,13 @@ jobs:
         run: |
           chmod +x LibOrbisPkg/out/PkgTool.Core
           cd ps4_server
-          ../LibOrbisPkg/out/PkgTool.Core pkg create project.gp4 . ./ps4_remote_host.pkg || true
-          ls -la
+          ../LibOrbisPkg/out/PkgTool.Core pkg create project.gp4 . ps4_remote_host.pkg
 
       - name: Upload PS4 PKG Artifact
         uses: actions/upload-artifact@v4
         with:
           name: ps4-pkg
-          path: ps4_server/*.pkg
+          path: "**/*.pkg"
           if-no-files-found: error
 
   build-ios-ipa:
