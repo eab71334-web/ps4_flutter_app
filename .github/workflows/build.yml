@@ -9,11 +9,19 @@ on:
 
 jobs:
   build-ps4-pkg:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+
+      - name: Setup OpenOrbis PS4 Toolchain
+        uses: OpenOrbis/toolchain-action@v1
+
+      - name: Compile PS4 Binary (eboot.bin)
+        run: |
+          cd ps4_server
+          make
 
       - name: Setup .NET Core 3.1 SDK
         uses: actions/setup-dotnet@v4
@@ -24,17 +32,21 @@ jobs:
         run: |
           git clone https://github.com/maxton/LibOrbisPkg.git
 
-      - name: Force .NET 3.1 Environment & Build PkgTool
+      - name: Build PkgTool
         run: |
           echo '{"sdk":{"version":"3.1.426","rollForward":"latestFeature"}}' > global.json
           dotnet restore LibOrbisPkg/PkgTool.Core/PkgTool.Core.csproj
-          dotnet publish LibOrbisPkg/PkgTool.Core/PkgTool.Core.csproj -c Release -r win-x64 --self-contained true -o ./pkgtool_bin
+          dotnet publish LibOrbisPkg/PkgTool.Core/PkgTool.Core.csproj -c Release --self-contained true -o ./pkgtool_bin
 
-      - name: Ensure Directory and Create Dummy PKG
-        shell: powershell
+      - name: Prepare sce_sys Directory Structure
         run: |
-          New-Item -ItemType Directory -Force -Path "ps4_server"
-          Set-Content -Path "ps4_server/app.pkg" -Value "PS4 FPKG DUMMY DATA"
+          mkdir -p ps4_server/sce_sys
+          cp ps4_server/param.sfo ps4_server/sce_sys/param.sfo
+          cp ps4_server/icon0.png ps4_server/sce_sys/icon0.png
+
+      - name: Build Real PKG using PkgTool
+        run: |
+          ./pkgtool_bin/PkgTool.Core pkg_build ps4_server/project.gp4 ps4_server
 
       - name: Upload PS4 PKG Artifact
         uses: actions/upload-artifact@v4
