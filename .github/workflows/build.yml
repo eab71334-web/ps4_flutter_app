@@ -45,7 +45,7 @@ jobs:
         run: |
           echo '{"sdk":{"version":"3.1.426","rollForward":"latestFeature"}}' > global.json
           dotnet restore LibOrbisPkg/PkgTool.Core/PkgTool.Core.csproj
-          dotnet publish LibOrbisPkg/PkgTool.Core/PkgTool.Core.csproj -c Release --self-contained true -o ./pkgtool_bin
+          dotnet publish LibOrbisPkg/PkgTool.Core/PkgTool.Core.csproj -c Release -r linux-x64 --self-contained true -o ./pkgtool_bin
 
       - name: Build Real PKG using PkgTool
         run: |
